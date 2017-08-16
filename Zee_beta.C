@@ -101,21 +101,8 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
   Yaxis->SetTitleOffset(0.85);
 
   gStyle->SetTitleFontSize(0.1);
-
   ge->SetTitle( Title.c_str() );
   ge->SetLineWidth(3);
-
-  // Perform A Linear Fit:
-  //TF1 *linfit = new TF1("linfit", "[0]*x + [1]",0,33);
-  //ge->Fit("linfit","QMES",0,33);
-  //TLatex *tex = new TLatex();
-  //tex->SetNDC();
-  //tex->SetTextSize(0.080);
-  //tex->SetTextFont(42);
-  //tex->SetTextColor(kBlack);
-  //if(linfit->GetParameter(1)>0)
-  //tex->DrawLatex(0.15, 0.8, Form("y = %.2fx + %.2f", linfit->GetParameter(0), linfit->GetParameter(1)));
-  //else tex->DrawLatex(0.15, 0.8, Form("y = %.2fx - %.2f", linfit->GetParameter(0), -linfit->GetParameter(1) ));
 
   gErrorIgnoreLevel = kWarning; //Suppress info about created file
   c->SaveAs( ("plots/pdf/"+filename+".pdf").c_str() );
@@ -293,6 +280,16 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
 
 
 
+template <class U1>
+U1 CutArray(U1 cuts[], int nSteps, U1 min, U1 max) {
+  U1 stepSize = (max - min) / nSteps;
+  for (int i=0; i<nSteps; i++) cuts[i] = min + i * stepSize;
+  cuts[nSteps] = max; // Last element outside loop because StepSize might be rounded if int
+  return stepSize;
+}
+
+
+
 void Zee_beta() {
   string filename = "All2016.root";
 
@@ -366,48 +363,90 @@ void Zee_beta() {
   Long64_t nentries = tree->GetEntries();
   std::cout<<"Number of Events in Sample: "<<nentries<<std::endl;
 
-  // min and max: Run, Transparency, nPV, eventTime
-  double transpMin   = 0.4;
-  double transpMax   = 3.4;
+  // Find values of min and max
+  float transpMin   = 0.4;
+  float transpMax   = 3.4;
   unsigned int runMin = 10E7;
   unsigned int runMax = 0;
   unsigned int nPVMin = 1;
   unsigned int nPVMax = nPVMin;
   unsigned int eventTimeMin = 4E9;
   unsigned int eventTimeMax = 0;
+  float t1Min = 10;
+  float t1Max = -10;
+  float t1seedMin = 10;
+  float t1seedMax = -10;
+  float t1rawseedMin = 10;
+  float t1rawseedMax = -10;
+  float t1calibseedMin = 10;
+  float t1calibseedMax = -10;
+  float t1calibseedseptMin = 10;
+  float t1calibseedseptMax = -10;
+  float t2Min = 10;
+  float t2Max = -10;
+  float t2seedMin = 10;
+  float t2seedMax = -10;
+  float t2rawseedMin = 10;
+  float t2rawseedMax = -10;
+  float t2calibseedMin = 10;
+  float t2calibseedMax = -10;
+  float t2calibseedseptMin = 10;
+  float t2calibseedseptMax = -10;
 
   for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
     tree->GetEntry(iEntry);
     
     if      (run < runMin) runMin = run;
-    else if (run > runMax) runMax = run;
+    else if (run > runMax) runMax = run; // the "else" should speed it up. If the data order is monotonic, remove it
 
     if      (eventTime < eventTimeMin) eventTimeMin = eventTime;
     else if (eventTime > eventTimeMax) eventTimeMax = eventTime;
 
     if (nPV > nPVMax) nPVMax = nPV;
+
+    if (t1 > -5 && t1 < 5) {
+      if      (t1 < t1Min) t1Min = t1;
+      else if (t1 > t1Max) t1Max = t1;
+      if      (t1_seed < t1seedMin) t1seedMin = t1_seed;
+      else if (t1_seed > t1seedMax) t1seedMax = t1_seed;
+      if      (t1raw_seed < t1rawseedMin) t1rawseedMin = t1raw_seed;
+      else if (t1raw_seed > t1rawseedMax) t1rawseedMax = t1raw_seed;
+      if      (t1calib_seed < t1calibseedMin) t1calibseedMin = t1calib_seed;
+      else if (t1calib_seed > t1calibseedMax) t1calibseedMax = t1calib_seed;
+      if      (t1calib_seed_sept < t1calibseedseptMin) t1calibseedseptMin = t1calib_seed_sept;
+      else if (t1calib_seed_sept > t1calibseedseptMax) t1calibseedseptMax = t1calib_seed_sept;
+    }
+
+    if (t2 > -5 && t2 < 5) {
+      if      (t2 < t2Min) t2Min = t2;
+      else if (t2 > t2Max) t2Max = t2;
+      if      (t2_seed < t2seedMin) t2seedMin = t2_seed;
+      else if (t2_seed > t2seedMax) t2seedMax = t2_seed;
+      if      (t2raw_seed < t2rawseedMin) t2rawseedMin = t2raw_seed;
+      else if (t2raw_seed > t2rawseedMax) t2rawseedMax = t2raw_seed;
+      if      (t2calib_seed < t2calibseedMin) t2calibseedMin = t2calib_seed;
+      else if (t2calib_seed > t2calibseedMax) t2calibseedMax = t2calib_seed;
+      if      (t2calib_seed_sept < t2calibseedseptMin) t2calibseedseptMin = t2calib_seed_sept;
+      else if (t2calib_seed_sept > t2calibseedseptMax) t2calibseedseptMax = t2calib_seed_sept;
+    }
   }
 
   // Construct (nSteps) intervals of: Run, Transparency, nPV
   int nSteps = 50;
   unsigned int runCuts[nSteps + 1];
-  int stepSize = (runMax - runMin) / nSteps;
-  for (int i=0; i<nSteps; i++) runCuts[i] = runMin + i * stepSize;
-  runCuts[nSteps] = runMax; // Last element outside loop because StepSize might be rounded
+  int stepSize = CutArray(runCuts, nSteps, runMin, runMax);
 
   unsigned int nPVCuts[nSteps + 1];
-  int nPVStepSize = (nPVMax - nPVMin) / nSteps;
-  for (int i=0; i<nSteps; i++) nPVCuts[i] = nPVMin + i * nPVStepSize;
-  nPVCuts[nSteps] = nPVMax;
+  int nPVStepSize = CutArray(nPVCuts, nSteps, nPVMin, nPVMax);
 
   unsigned int eventTimeCuts[nSteps + 1];
-  int eventTimeStepSize = (eventTimeMax - eventTimeMin) / nSteps;
-  for (int i=0; i<nSteps; i++) eventTimeCuts[i] = eventTimeMin + i * eventTimeStepSize;
-  eventTimeCuts[nSteps] = eventTimeMax;
+  int eventTimeStepSize = CutArray(eventTimeCuts, nSteps, eventTimeMin, eventTimeMax);
 
   float transpCuts[nSteps+1];
-  float transpStepSize = (transpMax - transpMin) / nSteps;
-  for (int i=0; i<=nSteps; i++) transpCuts[i] = transpMin + (i * transpStepSize);
+  float transpStepSize = CutArray(transpCuts, nSteps, transpMin, transpMax);
+
+  float t1Cuts[nSteps + 1];
+  float t1StepSize = CutArray(t1Cuts, nSteps, t1Min, t1Max);
 
   // Declare Histograms
   TH1F *histRun_t[nSteps];
