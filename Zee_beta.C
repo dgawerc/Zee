@@ -246,10 +246,12 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
     etaMean[i]  = GetDGMean( etaFit[i] );//etaFit[i]->GetParameter(1);
     etaMeanEr[i]= GetDGMeanError( etaFit[i] );//etaFit[i]->GetParError(1);
   }
+
   TH1D* etaSigmaHist = new TH1D( ("EtaSigma_"+timeTitle).c_str() , (timeTitle+";i#eta;Time Resolution #sigma (ns)").c_str() ,etaChannels, -85.5, 85.5);
   TH1D* etaMeanHist  = new TH1D( ("EtaMean_"+timeTitle ).c_str() , (timeTitle+";i#eta;Mean").c_str() ,etaChannels, -85.5, 85.5);
   TH1D* phiSigmaHist = new TH1D( ("PhiSigma_"+timeTitle).c_str() , (timeTitle+";i#phi;Time Resolution #sigma (ns)").c_str() ,phiChannels, 0, 360);
   TH1D* phiMeanHist  = new TH1D( ("PhiMean_"+timeTitle ).c_str() , (timeTitle+";i#phi;Mean").c_str() ,phiChannels, 0, 360);
+
   for (int i=0; i<etaChannels; i++) {
     if (etaHists[i]->GetEntries() > 100 ) {
       etaSigmaHist->SetBinContent(i, etaSigma[i]);
@@ -287,6 +289,67 @@ U1 CutArray(U1 cuts[], int nSteps, U1 min, U1 max) {
   cuts[nSteps] = max; // Last element outside loop because StepSize might be rounded if int
   return stepSize;
 }
+
+
+void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float xmax, int ylen, float ymin, float ymax, string histTitle, string Title, string xTitle, string yTitle) {
+  // zAxis: 1 = Mean, 2 = Sigma, 0 = Entries
+  TH2D *histFinal = new TH2D(histTitle.c_str(), string(Title+";"+xTitle+";"+yTitle).c_str() , xlen, xmin, xmax, ylen, ymin, ymax);
+
+  if (zAxis == 0) {
+    for (int i=0; i<xlen; i++) {
+      for (int j=0; j<ylen; j++) {
+        histFinal->SetBinContent(i+1, j+1, hist[i][j]->GetEntries());
+      }
+    }
+  }
+
+
+  else if (zAxis == 1) {
+    TF1  *Fit[xlen][ylen];
+    double param[xlen][ylen];
+    double minParam = 5E7;
+    for (int i=0; i<xlen; i++) {
+      for (int j=0; j<ylen; j++) {
+        if ( hist[i][j]->GetEntries() > 150 ) {
+          Fit[i][j] = Fitter(hist[i][j]);
+          param[i][j] = GetDGMean(Fit[i][j]);
+          if ( abs(param[i][j]) < 0.2 ) {
+            histFinal->SetBinContent(i+1, j+1, param[i][j]);
+            if ( param[i][j]<minParam ) minParam = param[i][j];
+          }
+        }
+        else histFinal->SetBinContent(i+1, j+1, -999);
+      }
+    }
+  histFinal->SetMinimum( minParam );
+  }
+
+
+  else if (zAxis == 2) {
+    TF1  *Fit[xlen][ylen];
+    double param[xlen][ylen];
+    double minParam = 5E7;
+    for (int i=0; i<xlen; i++) {
+      for (int j=0; j<ylen; j++) {
+        if ( hist[i][j]->GetEntries() > 150 ) {
+          Fit[i][j] = Fitter(hist[i][j]);
+          param[i][j] = GetDGSigma(Fit[i][j]);
+          if ( param[i][j] < 2 ) {
+            histFinal->SetBinContent(i+1, j+1, param[i][j]);
+            if ( param[i][j]<minParam ) minParam = param[i][j];
+          }
+        }
+        else histFinal->SetBinContent(i+1, j+1, -999);
+      }
+    }
+  histFinal->SetMinimum( minParam );
+  }
+
+
+  histFinal->SetOption("colz");
+  SaveHist(histFinal);
+}
+
 
 
 
@@ -372,26 +435,8 @@ void Zee_beta() {
   unsigned int nPVMax = nPVMin;
   unsigned int eventTimeMin = 4E9;
   unsigned int eventTimeMax = 0;
-  float t1Min = 10;
-  float t1Max = -10;
-  float t1seedMin = 10;
-  float t1seedMax = -10;
-  float t1rawseedMin = 10;
-  float t1rawseedMax = -10;
-  float t1calibseedMin = 10;
-  float t1calibseedMax = -10;
-  float t1calibseedseptMin = 10;
-  float t1calibseedseptMax = -10;
-  float t2Min = 10;
-  float t2Max = -10;
-  float t2seedMin = 10;
-  float t2seedMax = -10;
-  float t2rawseedMin = 10;
-  float t2rawseedMax = -10;
-  float t2calibseedMin = 10;
-  float t2calibseedMax = -10;
-  float t2calibseedseptMin = 10;
-  float t2calibseedseptMax = -10;
+  float tMin = -5;
+  float tMax = 5;
 
   for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
     tree->GetEntry(iEntry);
@@ -403,35 +448,9 @@ void Zee_beta() {
     else if (eventTime > eventTimeMax) eventTimeMax = eventTime;
 
     if (nPV > nPVMax) nPVMax = nPV;
-
-    if (t1 > -5 && t1 < 5) {
-      if      (t1 < t1Min) t1Min = t1;
-      else if (t1 > t1Max) t1Max = t1;
-      if      (t1_seed < t1seedMin) t1seedMin = t1_seed;
-      else if (t1_seed > t1seedMax) t1seedMax = t1_seed;
-      if      (t1raw_seed < t1rawseedMin) t1rawseedMin = t1raw_seed;
-      else if (t1raw_seed > t1rawseedMax) t1rawseedMax = t1raw_seed;
-      if      (t1calib_seed < t1calibseedMin) t1calibseedMin = t1calib_seed;
-      else if (t1calib_seed > t1calibseedMax) t1calibseedMax = t1calib_seed;
-      if      (t1calib_seed_sept < t1calibseedseptMin) t1calibseedseptMin = t1calib_seed_sept;
-      else if (t1calib_seed_sept > t1calibseedseptMax) t1calibseedseptMax = t1calib_seed_sept;
-    }
-
-    if (t2 > -5 && t2 < 5) {
-      if      (t2 < t2Min) t2Min = t2;
-      else if (t2 > t2Max) t2Max = t2;
-      if      (t2_seed < t2seedMin) t2seedMin = t2_seed;
-      else if (t2_seed > t2seedMax) t2seedMax = t2_seed;
-      if      (t2raw_seed < t2rawseedMin) t2rawseedMin = t2raw_seed;
-      else if (t2raw_seed > t2rawseedMax) t2rawseedMax = t2raw_seed;
-      if      (t2calib_seed < t2calibseedMin) t2calibseedMin = t2calib_seed;
-      else if (t2calib_seed > t2calibseedMax) t2calibseedMax = t2calib_seed;
-      if      (t2calib_seed_sept < t2calibseedseptMin) t2calibseedseptMin = t2calib_seed_sept;
-      else if (t2calib_seed_sept > t2calibseedseptMax) t2calibseedseptMax = t2calib_seed_sept;
-    }
   }
 
-  // Construct (nSteps) intervals of: Run, Transparency, nPV
+  // Construct (nSteps) intervals 
   int nSteps = 50;
   unsigned int runCuts[nSteps + 1];
   int stepSize = CutArray(runCuts, nSteps, runMin, runMax);
@@ -445,8 +464,8 @@ void Zee_beta() {
   float transpCuts[nSteps+1];
   float transpStepSize = CutArray(transpCuts, nSteps, transpMin, transpMax);
 
-  float t1Cuts[nSteps + 1];
-  float t1StepSize = CutArray(t1Cuts, nSteps, t1Min, t1Max);
+  float tCuts[nSteps + 1];
+  float tStepSize = CutArray(tCuts, nSteps, tMin, tMax);
 
   // Declare Histograms
   TH1F *histRun_t[nSteps];
@@ -470,12 +489,19 @@ void Zee_beta() {
   TH1F *histTransp1_tcalibseedsept[nSteps];
   TH1F *histTransp2_tcalibseedsept[nSteps];
 
+  vector< vector<TH1F*> > histTransp1Transp2_t (nSteps, vector<TH1F*>(nSteps)); // transp2 vs transp 1 (sig & mean on Z)
+  // Above is a 2D vector array of TH1F histograms
+  vector< vector<TH1F*> > histTransp1t1 (nSteps, vector<TH1F*>(nSteps)); // t1 vs Transp1 (nEvents on Z)
+  vector< vector<TH1F*> > histTransp2t2 (nSteps, vector<TH1F*>(nSteps));
+  TH1F *histTransp1_t1[nSteps]; // average t1 value for each bin of Transp1
+  TH1F *histTransp2_t2[nSteps];
+
   int BinSize = 3;
   int phiChannels = 360;
   int etaChannels = 171;
   int phiBins = phiChannels/BinSize;
   int etaBins = etaChannels/BinSize;
-  TH1F *histEtaPhi_t[phiBins][etaBins]; // Phi from 0 to 360 inclusive. Eta from -85 to 85 inclusive. Bins of 3.
+  vector< vector<TH1F*> > histEtaPhi_t (phiBins, vector<TH1F*>(etaBins)); // Phi from 0 to 360 inclusive. Eta from -85 to 85 inclusive. Bins of 3.
   TH1F *histEta_t[etaChannels];
   TH1F *histPhi_t[phiChannels];
   TH1F *histEta_tseed[etaChannels];
@@ -509,6 +535,14 @@ void Zee_beta() {
     histTransp2_tcalibseed[i] = new TH1F( Form("histTransp2_tcalibseed[%d]",i), ";t_{1}-t_{2} calib seed;Entries", 120, -3, 3);
     histTransp1_tcalibseedsept[i] = new TH1F( Form("histTransp1_tcalibseedsept[%d]",i), ";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
     histTransp2_tcalibseedsept[i] = new TH1F( Form("histTransp2_tcalibseedsept[%d]",i), ";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
+
+    for (int j=0; j<nSteps; j++) {
+      histTransp1Transp2_t[i][j] = new TH1F( Form("histTransp1Transp2_t[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);
+      histTransp1t1[i][j] = new TH1F( Form("histTransp1t1[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);
+      histTransp2t2[i][j] = new TH1F( Form("histTransp2t2[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);;
+    }
+      histTransp1_t1[i] = new TH1F( Form("histTransp1_t1[%d]",i), ";t_{1}-t_{2};Entries", 120, -3, 3); 
+      histTransp2_t2[i] = new TH1F( Form("histTransp2_t2[%d]",i), ";t_{1}-t_{2};Entries", 120, -3, 3);
   }
   for (int i=0; i<phiBins; i++){
     for (int j=0; j<etaBins; j++){
@@ -559,7 +593,7 @@ void Zee_beta() {
         histEventTime_t[i]->Fill( t1-t2 );
     }
 
-    //Time resolution vs Transparency
+    // Transparency
     for (int i=0; i<nSteps; i++) {
       if( !(seed1_transpCorr>=transpCuts[i] && seed1_transpCorr<transpCuts[i+1]) ) continue;
       histTransp1_t[i]->Fill( t1-t2 );
@@ -567,6 +601,8 @@ void Zee_beta() {
       histTransp1_trawseed[i]->Fill( t1raw_seed-t2raw_seed );
       histTransp1_tcalibseed[i]->Fill( t1calib_seed-t2calib_seed );
       histTransp1_tcalibseedsept[i]->Fill( t1calib_seed_sept-t2calib_seed_sept );
+      
+      histTransp1_t1[i]->Fill( t1 );
       break; // Don't bother to check other cases in the for loop
     }
     for (int i=0; i<nSteps; i++) {
@@ -576,7 +612,28 @@ void Zee_beta() {
       histTransp2_trawseed[i]->Fill( t1raw_seed-t2raw_seed );
       histTransp2_tcalibseed[i]->Fill( t1calib_seed-t2calib_seed );
       histTransp2_tcalibseedsept[i]->Fill( t1calib_seed_sept-t2calib_seed_sept );
+
+      histTransp2_t2[i]->Fill( t2 );
       break; // Don't bother to check other cases in the for loop
+    }
+    int brk = 0;
+    for (int i=0; i<nSteps; i++) {
+      for (int j=0; j<nSteps; j++) {
+        if( seed1_transpCorr>=transpCuts[i] && seed1_transpCorr<transpCuts[i+1] &&
+            seed2_transpCorr>=transpCuts[j] && seed2_transpCorr<transpCuts[j+1]) {
+          histTransp1Transp2_t[i][j]->Fill( t1-t2 );
+          brk += 1;
+        }
+        if( seed1_transpCorr>=transpCuts[i] && seed1_transpCorr<transpCuts[i+1] && t1>=tCuts[j] && t1<tCuts[j+1]) {
+          histTransp1t1[i][j]->Fill( t1 );// Fill content doesn't matter, just want nEntries
+          brk += 1;
+        }
+        if( seed2_transpCorr>=transpCuts[i] && seed2_transpCorr<transpCuts[i+1] && t2>=tCuts[j] && t2<tCuts[j+1]) {
+          histTransp2t2[i][j]->Fill( t2 );// Fill content doesn't matter, just want nEntries
+          brk += 1;
+        }
+      }
+      if (brk == 3) break;
     }
 
     // Cut on Eta, Phi
@@ -634,6 +691,9 @@ void Zee_beta() {
   EtaPhi1D( etaChannels, phiChannels, histEta_tcalibseed,     histPhi_tcalibseed,     "tcalibseed" );
   EtaPhi1D( etaChannels, phiChannels, histEta_tcalibseedsept, histPhi_tcalibseedsept, "tcalibseedsept" );
 
+
+
+/*
   // Get gauss fit and save histograms to file
   TF1 *EtaPhiFit_t[phiBins][etaBins];
   float EtaPhiSigma_t[phiBins][etaBins];
@@ -679,4 +739,23 @@ void Zee_beta() {
   histEtaPhiMean_t->SetOption("colz");
   SaveHist(histEtaPhiSigma_t);
   SaveHist(histEtaPhiMean_t);
+*/
+
+  cout<<"BEGINNING 2D PLOTS"<<endl;
+  cout<<"Generating mean:eta:phi plot..."<<endl;
+  hist2D( histEtaPhi_t, 1, phiBins,0,360, etaBins,-85.5,85.5, "EtaPhiMean_t", "Mean", "i#phi", "i#eta" );
+  cout<<"Generating sigma:eta:phi plot..."<<endl;
+  hist2D( histEtaPhi_t, 2, phiBins,0,360, etaBins,-85.5,85.5, "EtaPhiSigma_t","#sigma", "i#phi", "i#eta" );
+  cout<<"Generating sigma:Transparency_1:Transparency_2 plot..."<<endl;
+  hist2D( histTransp1Transp2_t, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_t", "#sigma of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
+  cout<<"Generating Events:t1:Transparency_1 plot..."<<endl;
+  hist2D( histTransp1t1, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "Transp1t1", "Events", "Seed 1 Transparency", "t_{1}" );
+  cout<<"Generating Events:t2:Transparency_2 plot..."<<endl;
+  hist2D( histTransp2t2, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "Transp2t2", "Events", "Seed 2 Transparency", "t_{2}" );
+
+  //histTransp1Transp2_t[nSteps][nSteps];
+  //histTransp1t1[nSteps][nSteps];
+  //histTransp2t2[nSteps][nSteps];
+  //histTransp1_t1[nSteps];
+  //histTransp2_t2[nSteps];
 }
