@@ -352,6 +352,15 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
 
 
 
+void AvgTimeGraph(TH1F** hists, int bins, float min, float max, string histTitle, string Title, string xTitle, string yTitle) {
+  // hists is array of length bins
+  TH1F *newHist = new TH1F(histTitle.c_str(), string(Title+";"+xTitle+";"+yTitle).c_str(), bins, min, max);
+  for (int i=0; i<bins; i++) newHist->SetBinContent(i+1, hists[i]->GetMean() );
+  SaveHist(newHist);
+}
+
+
+
 
 void Zee_beta() {
   string filename = "All2016.root";
@@ -684,6 +693,11 @@ void Zee_beta() {
   SigMeanTGraph(file, histTransp2_tcalibseedsept, "histTransp2_tcalibseedsept", transpCuts, transpStepSize, nSteps, "Calib Seed Sept", "Seed 2 Transparency", "transp2_tcalibseedsept");
 
 
+  cout<<"Generating Avg Time vs Transparency Plots..."<<endl;
+  AvgTimeGraph(histTransp1_t1, nSteps, transpMin, transpMax, "Transp1_t1", "", "Seed 1 Transparency", "Average t_{1}");
+  AvgTimeGraph(histTransp2_t2, nSteps, transpMin, transpMax, "Transp2_t2", "", "Seed 2 Transparency", "Average t_{2}");
+
+
   std::cout<<"Generating 1D Eta and Phi Plots..."<<std::endl;
   EtaPhi1D( etaChannels, phiChannels, histEta_t,              histPhi_t,              "t" );
   EtaPhi1D( etaChannels, phiChannels, histEta_tseed,          histPhi_tseed,          "tseed" );
@@ -691,55 +705,6 @@ void Zee_beta() {
   EtaPhi1D( etaChannels, phiChannels, histEta_tcalibseed,     histPhi_tcalibseed,     "tcalibseed" );
   EtaPhi1D( etaChannels, phiChannels, histEta_tcalibseedsept, histPhi_tcalibseedsept, "tcalibseedsept" );
 
-
-
-/*
-  // Get gauss fit and save histograms to file
-  TF1 *EtaPhiFit_t[phiBins][etaBins];
-  float EtaPhiSigma_t[phiBins][etaBins];
-  float EtaPhiMean_t[phiBins][etaBins];
-
-
-  std::cout<<"Starting Gauss Fits for Eta vs Phi Plots..."<<std::endl;
-  for (int i=0; i<phiBins; i++){
-    for (int j=0; j<etaBins; j++){
-      if (i % 10 == 0 && j==0) std::cout<<"Processing Phi Value of "<<i*BinSize<<std::endl;
-      if ( !(histEtaPhi_t[i][j]->GetEntries() != 0) ) continue;
-      EtaPhiFit_t[i][j] = Fitter(histEtaPhi_t[i][j]);
-      EtaPhiSigma_t[i][j] = GetDGSigma( EtaPhiFit_t[i][j] );//EtaPhiFit_t[i][j]->GetParameter(2);
-      EtaPhiMean_t[i][j]  = GetDGMean( EtaPhiFit_t[i][j] );//EtaPhiFit_t[i][j]->GetParameter(1);
-    }
-  }
-  
-  // Create Eta vs Phi Histograms
-  TH2D *histEtaPhiSigma_t = new TH2D("histEtaPhiSigma_t","#sigma; i#phi; i#eta", phiBins,0,360, etaBins,-85.5,85.5); 
-  TH2D *histEtaPhiMean_t  = new TH2D("histEtaPhiMean_t","Mean; i#phi; i#eta", phiBins,0,360, etaBins,-85.5,85.5);
-  double minSigma = 5E7;
-  double minMean = 5E7;
-  for (int i=0; i<phiBins; i++) {
-    for (int j=0; j<etaBins; j++) {
-      // Sigma
-      if ( histEtaPhi_t[i][j]->GetEntries() > 150 && EtaPhiSigma_t[i][j]<1) {
-        histEtaPhiSigma_t->SetBinContent(i+1, j+1, EtaPhiSigma_t[i][j]);
-        if ( EtaPhiSigma_t[i][j]<minSigma ) minSigma = EtaPhiSigma_t[i][j];
-      }
-      else histEtaPhiSigma_t->SetBinContent(i+1, j+1, -999);
-
-      // Mean
-      if ( histEtaPhi_t[i][j]->GetEntries() > 150 && abs(EtaPhiMean_t[i][j])<.2) {
-        histEtaPhiMean_t->SetBinContent(i+1, j+1, EtaPhiMean_t[i][j]);
-        if ( EtaPhiMean_t[i][j]<minMean ) minMean = EtaPhiMean_t[i][j];
-      }
-      else histEtaPhiMean_t->SetBinContent(i+1, j+1, -999);
-    }
-  }
-  histEtaPhiSigma_t->SetMinimum(minSigma);
-  histEtaPhiMean_t->SetMinimum(minMean);
-  histEtaPhiSigma_t->SetOption("colz");
-  histEtaPhiMean_t->SetOption("colz");
-  SaveHist(histEtaPhiSigma_t);
-  SaveHist(histEtaPhiMean_t);
-*/
 
   cout<<"BEGINNING 2D PLOTS"<<endl;
   cout<<"Generating mean:eta:phi plot..."<<endl;
@@ -749,13 +714,8 @@ void Zee_beta() {
   cout<<"Generating sigma:Transparency_1:Transparency_2 plot..."<<endl;
   hist2D( histTransp1Transp2_t, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_t", "#sigma of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
   cout<<"Generating Events:t1:Transparency_1 plot..."<<endl;
-  hist2D( histTransp1t1, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "Transp1t1", "Events", "Seed 1 Transparency", "t_{1}" );
+  hist2D( histTransp1t1, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1", "Events", "Seed 1 Transparency", "t_{1}" );
   cout<<"Generating Events:t2:Transparency_2 plot..."<<endl;
-  hist2D( histTransp2t2, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "Transp2t2", "Events", "Seed 2 Transparency", "t_{2}" );
+  hist2D( histTransp2t2, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2", "Events", "Seed 2 Transparency", "t_{2}" );
 
-  //histTransp1Transp2_t[nSteps][nSteps];
-  //histTransp1t1[nSteps][nSteps];
-  //histTransp2t2[nSteps][nSteps];
-  //histTransp1_t1[nSteps];
-  //histTransp2_t2[nSteps];
 }
