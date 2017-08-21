@@ -185,7 +185,7 @@ void SigMeanTGraph(TFile *file, TH1F** hists, string histName, T1 cutArray[], T2
 
 
 
-void SaveHist(TH1 *hist, int linearfit = 0) {
+void SaveHist(TH1 *hist, int linearfit = 0, float xmin = 1.3, float xmax = 2.3) {
   TCanvas *c = new TCanvas("c","c",200,10,600,400);
   c->SetLeftMargin(0.14);
   c->SetBottomMargin(0.15);
@@ -206,17 +206,17 @@ void SaveHist(TH1 *hist, int linearfit = 0) {
   Yaxis->SetTitleOffset(0.85);
 
   if (linearfit == 1) { // Generalize this feature later
-    //TF1 *linfit = new TF1("linfit", "[0]*x + [1]", 1.3, 2.3);
-    TF1 *linfit = new TF1("linfit", "pol1", 1.3, 2.3);
-    hist->Fit("linfit","QMES", "", 1.3,2.3);//linfit","QMES", 1.3, 2.3);
+    TF1 *linfit = new TF1("linfit", "pol1", xmin, xmax);
+    hist->Fit("linfit","QMES", "", xmin, xmax);//linfit","QMES", 1.3, 2.3);
     TLatex *tex = new TLatex();
     tex->SetNDC();
     tex->SetTextSize(0.080);
     tex->SetTextFont(42);
     tex->SetTextColor(kRed);
-    if(linfit->GetParameter(0)>0) 
-    tex->DrawLatex(0.15, 0.8, Form("y = %.2fx + %.2f", linfit->GetParameter(1), linfit->GetParameter(0)));
-    else tex->DrawLatex(0.15, 0.8, Form("y = %.2fx - %.2f", linfit->GetParameter(1), -linfit->GetParameter(0) ));
+    float yint = linfit->GetParameter(0);
+    float slope= linfit->GetParameter(1);
+    if( yint > 0 ) tex->DrawLatex( 0.15, 0.8, Form("y = %.2fx + %.2f", slope, yint) );
+    else tex->DrawLatex( 0.15, 0.8, Form("y = %.2fx - %.2f", slope, -yint) );
   }
 
   gStyle->SetTitleFontSize(0.1);
@@ -262,8 +262,8 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
     etaMeanEr[i]= GetDGMeanError( etaFit[i] );//etaFit[i]->GetParError(1);
   }
 
-  TH1D* etaSigmaHist = new TH1D( ("EtaSigma_"+timeTitle).c_str() , (timeTitle+";i#eta;Time Resolution #sigma (ns)").c_str() ,etaChannels, -85.5, 85.5);
-  TH1D* etaMeanHist  = new TH1D( ("EtaMean_"+timeTitle ).c_str() , (timeTitle+";i#eta;Mean").c_str() ,etaChannels, -85.5, 85.5);
+  TH1D* etaSigmaHist = new TH1D( ("EtaSigma_"+timeTitle).c_str() , (timeTitle+";i#eta;Time Resolution #sigma (ns)").c_str() ,etaChannels, -85, 85);
+  TH1D* etaMeanHist  = new TH1D( ("EtaMean_"+timeTitle ).c_str() , (timeTitle+";i#eta;Mean").c_str() ,etaChannels, -85, 85);
   TH1D* phiSigmaHist = new TH1D( ("PhiSigma_"+timeTitle).c_str() , (timeTitle+";i#phi;Time Resolution #sigma (ns)").c_str() ,phiChannels, 0, 360);
   TH1D* phiMeanHist  = new TH1D( ("PhiMean_"+timeTitle ).c_str() , (timeTitle+";i#phi;Mean").c_str() ,phiChannels, 0, 360);
 
@@ -540,9 +540,9 @@ void Zee_beta() {
   TH1F *histTransp1_t1calibseedsept[nSteps];
   TH1F *histTransp2_t2calibseedsept[nSteps];
 
-  int BinSize = 3;
+  int BinSize = 2;
   int phiChannels = 360;
-  int etaChannels = 171;
+  int etaChannels = 170;
   int phiBins = phiChannels/BinSize;
   int etaBins = etaChannels/BinSize;
   vector< vector<TH1F*> > histEtaPhi_t (phiBins, vector<TH1F*>(etaBins)); // Phi from 0 to 360 inclusive. Eta from -85 to 85 inclusive. Bins of 3.
@@ -726,6 +726,7 @@ void Zee_beta() {
 
     // Cut on Eta, Phi
     if( abs(ele1Eta)<1.47 && abs(ele2Eta)<1.47 ) { // Electrons in barrel
+      if( ele1SeedIEta > 0) ele1SeedIEta -= 1; // there are no events for ele1SeedIEta == 0 so we shift >0 entries down
       histEtaPhi_t[ (ele1SeedIPhi-1)/BinSize ][ (ele1SeedIEta+85)/BinSize ]->Fill(t1-t2);
       histEta_t[ (ele1SeedIEta+85) ]->Fill( t1-t2 );
       histPhi_t[ (ele1SeedIPhi-1)  ]->Fill( t1-t2 );
@@ -737,6 +738,7 @@ void Zee_beta() {
       histPhi_tcalibseed[ (ele1SeedIPhi-1)  ]->Fill( t1calib_seed-t2calib_seed );
       histEta_tcalibseedsept[ (ele1SeedIEta+85) ]->Fill( t1calib_seed_sept-t2calib_seed_sept );
       histPhi_tcalibseedsept[ (ele1SeedIPhi-1)  ]->Fill( t1calib_seed_sept-t2calib_seed_sept );
+      if( ele1SeedIEta >= 0) ele1SeedIEta += 1; // Reset value when leaving loop
     }
   }
 
@@ -794,10 +796,10 @@ void Zee_beta() {
 
   cout<<"BEGINNING 2D PLOTS"<<endl;
   cout<<"Generating mean:eta:phi Plot..."<<endl;
-  hist2D( histEtaPhi_t, 1, phiBins,0,360, etaBins,-85.5,85.5, "EtaPhiMean_t", "Mean", "i#phi", "i#eta" );
+  hist2D( histEtaPhi_t, 1, phiBins,0,360, etaBins,-85,85, "EtaPhiMean_t", "Mean", "i#phi", "i#eta" );
 
   cout<<"Generating sigma:eta:phi Plot..."<<endl;
-  hist2D( histEtaPhi_t, 2, phiBins,0,360, etaBins,-85.5,85.5, "EtaPhiSigma_t","#sigma", "i#phi", "i#eta" );
+  hist2D( histEtaPhi_t, 2, phiBins,0,360, etaBins,-85,85, "EtaPhiSigma_t","#sigma", "i#phi", "i#eta" );
 
   cout<<"Generating sigma:Transparency 1:Transparency 2 Plots..."<<endl;
   hist2D( histTransp1Transp2_t, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_t", "#sigma of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
