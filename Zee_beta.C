@@ -269,18 +269,18 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
 
   for (int i=0; i<etaChannels; i++) {
     if (etaHists[i]->GetEntries() > 100 ) {
-      etaSigmaHist->SetBinContent(i, etaSigma[i]);
-      etaSigmaHist->SetBinError(i, etaSigEr[i]);
-      etaMeanHist->SetBinContent(i, etaMean[i]);
-      etaMeanHist->SetBinError(i, etaMeanEr[i]);
+      etaSigmaHist->SetBinContent(i+1, etaSigma[i]);
+      etaSigmaHist->SetBinError(i+1, etaSigEr[i]);
+      etaMeanHist->SetBinContent(i+1, etaMean[i]);
+      etaMeanHist->SetBinError(i+1, etaMeanEr[i]);
     }
   }
   for (int i=0; i<phiChannels; i++) {
     if (phiHists[i]->GetEntries() > 100 ) {
-      phiSigmaHist->SetBinContent(i, phiSigma[i]);
-      phiSigmaHist->SetBinError(i, phiSigEr[i]);
-      phiMeanHist->SetBinContent(i, phiMean[i]);
-      phiMeanHist->SetBinError(i, phiMeanEr[i]);
+      phiSigmaHist->SetBinContent(i+1, phiSigma[i]);
+      phiSigmaHist->SetBinError(i+1, phiSigEr[i]);
+      phiMeanHist->SetBinContent(i+1, phiMean[i]);
+      phiMeanHist->SetBinError(i+1, phiMeanEr[i]);
     }
   }
 
@@ -349,7 +349,7 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
         if ( hist[i][j]->GetEntries() > 150 ) {
           Fit[i][j] = Fitter(hist[i][j]);
           param[i][j] = GetDGSigma(Fit[i][j]);
-          if ( param[i][j] < 0.6 ) {
+          if ( param[i][j] < 1.6 && param[i][j] > 0 ) {
             histFinal->SetBinContent(i+1, j+1, param[i][j]);
             if ( param[i][j]<minParam ) minParam = param[i][j];
           }
@@ -540,7 +540,7 @@ void Zee_beta() {
   TH1F *histTransp1_t1calibseedsept[nSteps];
   TH1F *histTransp2_t2calibseedsept[nSteps];
 
-  int BinSize = 2;
+  int BinSize = 5; // 1, 2, 5, or 10
   int phiChannels = 360;
   int etaChannels = 170;
   int phiBins = phiChannels/BinSize;
@@ -561,7 +561,7 @@ void Zee_beta() {
   for(int i=0; i<nSteps; i++) {
     histRun_t[i]     = new TH1F( Form("histRun_t[%d]",i) ,";t_{1}-t_{2};Entries", 120, -3, 3);
     histRun_tseed[i] = new TH1F( Form("histRun_tseed[%d]",i) ,";t_{1}-t_{2} seed;Entries", 120, -3, 3);
-    histRun_trawseed[i] = new TH1F( Form("histRun_trawseed[%d]",i) ,";t_{1}-t_{2} raw seed;Entries", 120, -3, 3);
+    histRun_trawseed[i] = new TH1F( Form("histRun_trawseed[%d]",i) ,";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
     histRun_tcalibseed[i] = new TH1F( Form("histRun_tcalibseed[%d]",i) ,";t_{1}-t_{2} calib seed;Entries", 120, -3, 3);
     histRun_tcalibseedsept[i] = new TH1F( Form("histRun_tcalibseedsept[%d]",i) ,";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
 
@@ -573,8 +573,8 @@ void Zee_beta() {
     histTransp2_t[i] = new TH1F( Form("histTransp2_t[%d]",i), ";t_{1}-t_{2};Entries", 120, -3, 3);
     histTransp1_tseed[i] = new TH1F( Form("histTransp1_tseed[%d]",i), ";t_{1}-t_{2} seed;Entries", 120, -3, 3);
     histTransp2_tseed[i] = new TH1F( Form("histTransp2_tseed[%d]",i), ";t_{1}-t_{2} seed;Entries", 120, -3, 3);
-    histTransp1_trawseed[i] = new TH1F( Form("histTransp1_trawseed[%d]",i), ";t_{1}-t_{2} raw seed;Entries", 120, -3, 3);
-    histTransp2_trawseed[i] = new TH1F( Form("histTransp2_trawseed[%d]",i), ";t_{1}-t_{2} raw seed;Entries", 120, -3, 3);
+    histTransp1_trawseed[i] = new TH1F( Form("histTransp1_trawseed[%d]",i), ";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
+    histTransp2_trawseed[i] = new TH1F( Form("histTransp2_trawseed[%d]",i), ";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
     histTransp1_tcalibseed[i] = new TH1F( Form("histTransp1_tcalibseed[%d]",i), ";t_{1}-t_{2} calib seed;Entries", 120, -3, 3);
     histTransp2_tcalibseed[i] = new TH1F( Form("histTransp2_tcalibseed[%d]",i), ";t_{1}-t_{2} calib seed;Entries", 120, -3, 3);
     histTransp1_tcalibseedsept[i] = new TH1F( Form("histTransp1_tcalibseedsept[%d]",i), ";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
@@ -583,7 +583,7 @@ void Zee_beta() {
     for (int j=0; j<nSteps; j++) {
       histTransp1Transp2_t[i][j] = new TH1F( Form("histTransp1Transp2_t[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);
       histTransp1Transp2_tseed[i][j] = new TH1F( Form("histTransp1Transp2_tseed[%d][%d]",i,j), ";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
-      histTransp1Transp2_trawseed[i][j] = new TH1F( Form("histTransp1Transp2_trawseed[%d][%d]",i,j), ";t_{1}-t_{2} Raw Seed;Entries", 120, -3, 3);
+      histTransp1Transp2_trawseed[i][j] = new TH1F( Form("histTransp1Transp2_trawseed[%d][%d]",i,j), ";t_{1}-t_{2} Raw Seed;Entries", 120, -5, 5);
       histTransp1Transp2_tcalibseed[i][j] = new TH1F( Form("histTransp1Transp2_tcalibseed[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed;Entries", 120, -3, 3);
       histTransp1Transp2_tcalibseedsept[i][j] = new TH1F( Form("histTransp1Transp2_tcalibseedsept[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed Sept;Entries", 120, -3, 3);
 
@@ -591,8 +591,8 @@ void Zee_beta() {
       histTransp2t2[i][j] = new TH1F( Form("histTransp2t2[%d][%d]",i,j), ";t_{2};Entries", 120, -3, 3);;
       histTransp1t1seed[i][j] = new TH1F( Form("histTransp1t1seed[%d][%d]",i,j), ";t_{1} Seed;Entries", 120, -3, 3);
       histTransp2t2seed[i][j] = new TH1F( Form("histTransp2t2seed[%d][%d]",i,j), ";t_{2} Seed;Entries", 120, -3, 3);;
-      histTransp1t1rawseed[i][j] = new TH1F( Form("histTransp1t1rawseed[%d][%d]",i,j), ";t_{1} Raw Seed;Entries", 120, -3, 3);
-      histTransp2t2rawseed[i][j] = new TH1F( Form("histTransp2t2rawseed[%d][%d]",i,j), ";t_{2} Raw Seed;Entries", 120, -3, 3);;
+      histTransp1t1rawseed[i][j] = new TH1F( Form("histTransp1t1rawseed[%d][%d]",i,j), ";t_{1} Raw Seed;Entries", 120, -5, 5);
+      histTransp2t2rawseed[i][j] = new TH1F( Form("histTransp2t2rawseed[%d][%d]",i,j), ";t_{2} Raw Seed;Entries", 120, -5, 5);;
       histTransp1t1calibseed[i][j] = new TH1F( Form("histTransp1t1calibseed[%d][%d]",i,j), ";t_{1} Calib Seed;Entries", 120, -3, 3);
       histTransp2t2calibseed[i][j] = new TH1F( Form("histTransp2t2calibseed[%d][%d]",i,j), ";t_{2} Calib Seed;Entries", 120, -3, 3);;
       histTransp1t1calibseedsept[i][j] = new TH1F( Form("histTransp1t1calibseedsept[%d][%d]",i,j), ";t_{1} Calib Seed Sept;Entries", 120, -3, 3);
@@ -603,8 +603,8 @@ void Zee_beta() {
       histTransp2_t2[i] = new TH1F( Form("histTransp2_t2[%d]",i), ";t_{2};Entries", 120, -3, 3);
       histTransp1_t1seed[i] = new TH1F( Form("histTransp1_t1seed[%d]",i), ";t_{1} Seed;Entries", 120, -3, 3);
       histTransp2_t2seed[i] = new TH1F( Form("histTransp2_t2seed[%d]",i), ";t_{2} Seed;Entries", 120, -3, 3);
-      histTransp1_t1rawseed[i] = new TH1F( Form("histTransp1_t1rawseed[%d]",i), ";t_{1} Raw Seed;Entries", 120, -3, 3);
-      histTransp2_t2rawseed[i] = new TH1F( Form("histTransp2_t2rawseed[%d]",i), ";t_{2} Raw Seed;Entries", 120, -3, 3);
+      histTransp1_t1rawseed[i] = new TH1F( Form("histTransp1_t1rawseed[%d]",i), ";t_{1} Raw Seed;Entries", 120, -5, 5);
+      histTransp2_t2rawseed[i] = new TH1F( Form("histTransp2_t2rawseed[%d]",i), ";t_{2} Raw Seed;Entries", 120, -5, 5);
       histTransp1_t1calibseed[i] = new TH1F( Form("histTransp1_t1calibseed[%d]",i), ";t_{1} Calib Seed;Entries", 120, -3, 3);
       histTransp2_t2calibseed[i] = new TH1F( Form("histTransp2_t2calibseed[%d]",i), ";t_{2} Calib Seed;Entries", 120, -3, 3);
       histTransp1_t1calibseedsept[i] = new TH1F( Form("histTransp1_t1calibseedsept[%d]",i), ";t_{1} Calib Seed Sept;Entries", 120, -3, 3);
@@ -618,14 +618,14 @@ void Zee_beta() {
   for (int i=0; i<etaChannels; i++) {
     histEta_t[i] = new TH1F( Form("histEta_t[%d]",i),";t_{1}-t_{2};Entries", 120, -3, 3);
     histEta_tseed[i] = new TH1F( Form("histEta_tseed[%d]",i),";t_{1}-t_{2} seed;Entries", 120, -3, 3);
-    histEta_trawseed[i] = new TH1F( Form("histEta_trawseed[%d]",i),";t_{1}-t_{2} raw seed;Entries", 120, -3, 3);
+    histEta_trawseed[i] = new TH1F( Form("histEta_trawseed[%d]",i),";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
     histEta_tcalibseed[i] = new TH1F( Form("histEtacalibseed_t[%d]",i),";t_{1}-t_{2} calib seed;Entries", 120, -3, 3);
     histEta_tcalibseedsept[i] = new TH1F( Form("histEta_tcalibseedsept[%d]",i),";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
   }
   for (int i=0; i<phiChannels; i++) {
     histPhi_t[i] = new TH1F( Form("histPhi_t[%d]",i),";t_{1}-t_{2};Entries", 120, -3, 3);
     histPhi_tseed[i] = new TH1F( Form("histPhi_tseed[%d]",i),";t_{1}-t_{2} seed;Entries", 120, -3, 3);
-    histPhi_trawseed[i] = new TH1F( Form("histPhi_trawseed[%d]",i),";t_{1}-t_{2} raw seed;Entries", 120, -3, 3);
+    histPhi_trawseed[i] = new TH1F( Form("histPhi_trawseed[%d]",i),";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
     histPhi_tcalibseed[i] = new TH1F( Form("histPhi_tcalibseed[%d]",i),";t_{1}-t_{2 calib seed};Entries", 120, -3, 3);
     histPhi_tcalibseedsept[i] = new TH1F( Form("histPhi_tcalibseedsept[%d]",i),";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
   }
