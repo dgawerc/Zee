@@ -498,12 +498,32 @@ void Zee_beta() {
   TH1F *histTransp1_tcalibseedsept[nSteps];
   TH1F *histTransp2_tcalibseedsept[nSteps];
 
+  // Below are 2D vector arrays of TH1F histograms
   vector< vector<TH1F*> > histTransp1Transp2_t (nSteps, vector<TH1F*>(nSteps)); // transp2 vs transp 1 (sig & mean on Z)
-  // Above is a 2D vector array of TH1F histograms
+  vector< vector<TH1F*> > histTransp1Transp2_tseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1Transp2_trawseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1Transp2_tcalibseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1Transp2_tcalibseedsept (nSteps, vector<TH1F*>(nSteps));
   vector< vector<TH1F*> > histTransp1t1 (nSteps, vector<TH1F*>(nSteps)); // t1 vs Transp1 (nEvents on Z)
   vector< vector<TH1F*> > histTransp2t2 (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1t1seed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp2t2seed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1t1rawseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp2t2rawseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1t1calibseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp2t2calibseed (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp1t1calibseedsept (nSteps, vector<TH1F*>(nSteps));
+  vector< vector<TH1F*> > histTransp2t2calibseedsept (nSteps, vector<TH1F*>(nSteps));
   TH1F *histTransp1_t1[nSteps]; // average t1 value for each bin of Transp1
   TH1F *histTransp2_t2[nSteps];
+  TH1F *histTransp1_t1seed[nSteps];
+  TH1F *histTransp2_t2seed[nSteps];
+  TH1F *histTransp1_t1rawseed[nSteps];
+  TH1F *histTransp2_t2rawseed[nSteps];
+  TH1F *histTransp1_t1calibseed[nSteps];
+  TH1F *histTransp2_t2calibseed[nSteps];
+  TH1F *histTransp1_t1calibseedsept[nSteps];
+  TH1F *histTransp2_t2calibseedsept[nSteps];
 
   int BinSize = 3;
   int phiChannels = 360;
@@ -547,11 +567,33 @@ void Zee_beta() {
 
     for (int j=0; j<nSteps; j++) {
       histTransp1Transp2_t[i][j] = new TH1F( Form("histTransp1Transp2_t[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);
+      histTransp1Transp2_tseed[i][j] = new TH1F( Form("histTransp1Transp2_tseed[%d][%d]",i,j), ";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
+      histTransp1Transp2_trawseed[i][j] = new TH1F( Form("histTransp1Transp2_trawseed[%d][%d]",i,j), ";t_{1}-t_{2} Raw Seed;Entries", 120, -3, 3);
+      histTransp1Transp2_tcalibseed[i][j] = new TH1F( Form("histTransp1Transp2_tcalibseed[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed;Entries", 120, -3, 3);
+      histTransp1Transp2_tcalibseedsept[i][j] = new TH1F( Form("histTransp1Transp2_tcalibseedsept[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed Sept;Entries", 120, -3, 3);
+
       histTransp1t1[i][j] = new TH1F( Form("histTransp1t1[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);
       histTransp2t2[i][j] = new TH1F( Form("histTransp2t2[%d][%d]",i,j), ";t_{1}-t_{2};Entries", 120, -3, 3);;
+      histTransp1t1seed[i][j] = new TH1F( Form("histTransp1t1seed[%d][%d]",i,j), ";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
+      histTransp2t2seed[i][j] = new TH1F( Form("histTransp2t2seed[%d][%d]",i,j), ";t_{1}-t_{2} Seed;Entries", 120, -3, 3);;
+      histTransp1t1rawseed[i][j] = new TH1F( Form("histTransp1t1rawseed[%d][%d]",i,j), ";t_{1}-t_{2} Raw Seed;Entries", 120, -3, 3);
+      histTransp2t2rawseed[i][j] = new TH1F( Form("histTransp2t2rawseed[%d][%d]",i,j), ";t_{1}-t_{2} Raw Seed;Entries", 120, -3, 3);;
+      histTransp1t1calibseed[i][j] = new TH1F( Form("histTransp1t1calibseed[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed;Entries", 120, -3, 3);
+      histTransp2t2calibseed[i][j] = new TH1F( Form("histTransp2t2calibseed[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed;Entries", 120, -3, 3);;
+      histTransp1t1calibseedsept[i][j] = new TH1F( Form("histTransp1t1calibseedsept[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed Sept;Entries", 120, -3, 3);
+      histTransp2t2calibseedsept[i][j] = new TH1F( Form("histTransp2t2calibseedsept[%d][%d]",i,j), ";t_{1}-t_{2} Calib Seed Sept;Entries", 120, -3, 3);;
     }
+
       histTransp1_t1[i] = new TH1F( Form("histTransp1_t1[%d]",i), ";t_{1}-t_{2};Entries", 120, -3, 3); 
       histTransp2_t2[i] = new TH1F( Form("histTransp2_t2[%d]",i), ";t_{1}-t_{2};Entries", 120, -3, 3);
+      histTransp1_t1seed[i] = new TH1F( Form("histTransp1_t1seed[%d]",i), ";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
+      histTransp2_t2seed[i] = new TH1F( Form("histTransp2_t2seed[%d]",i), ";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
+      histTransp1_t1rawseed[i] = new TH1F( Form("histTransp1_t1rawseed[%d]",i), ";t_{1}-t_{2} Raw Seed;Entries", 120, -3, 3);
+      histTransp2_t2rawseed[i] = new TH1F( Form("histTransp2_t2rawseed[%d]",i), ";t_{1}-t_{2} Raw Seed;Entries", 120, -3, 3);
+      histTransp1_t1calibseed[i] = new TH1F( Form("histTransp1_t1calibseed[%d]",i), ";t_{1}-t_{2} Calib Seed;Entries", 120, -3, 3);
+      histTransp2_t2calibseed[i] = new TH1F( Form("histTransp2_t2calibseed[%d]",i), ";t_{1}-t_{2} Calib Seed;Entries", 120, -3, 3);
+      histTransp1_t1calibseedsept[i] = new TH1F( Form("histTransp1_t1calibseedsept[%d]",i), ";t_{1}-t_{2} Calib Seed Sept;Entries", 120, -3, 3);
+      histTransp2_t2calibseedsept[i] = new TH1F( Form("histTransp2_t2calibseedsept[%d]",i), ";t_{1}-t_{2} Calib Seed Sept;Entries", 120, -3, 3);
   }
   for (int i=0; i<phiBins; i++){
     for (int j=0; j<etaBins; j++){
@@ -612,6 +654,11 @@ void Zee_beta() {
       histTransp1_tcalibseedsept[i]->Fill( t1calib_seed_sept-t2calib_seed_sept );
       
       histTransp1_t1[i]->Fill( t1 );
+      histTransp1_t1seed[i]->Fill( t1_seed );
+      histTransp1_t1rawseed[i]->Fill( t1raw_seed );
+      histTransp1_t1calibseed[i]->Fill( t1calib_seed );
+      histTransp1_t1calibseedsept[i]->Fill( t1calib_seed_sept );
+
       break; // Don't bother to check other cases in the for loop
     }
     for (int i=0; i<nSteps; i++) {
@@ -623,6 +670,11 @@ void Zee_beta() {
       histTransp2_tcalibseedsept[i]->Fill( t1calib_seed_sept-t2calib_seed_sept );
 
       histTransp2_t2[i]->Fill( t2 );
+      histTransp2_t2seed[i]->Fill( t2_seed );
+      histTransp2_t2rawseed[i]->Fill( t2raw_seed );
+      histTransp2_t2calibseed[i]->Fill( t2calib_seed );
+      histTransp2_t2calibseedsept[i]->Fill( t2calib_seed_sept );
+
       break; // Don't bother to check other cases in the for loop
     }
     int brk = 0;
@@ -631,14 +683,26 @@ void Zee_beta() {
         if( seed1_transpCorr>=transpCuts[i] && seed1_transpCorr<transpCuts[i+1] &&
             seed2_transpCorr>=transpCuts[j] && seed2_transpCorr<transpCuts[j+1]) {
           histTransp1Transp2_t[i][j]->Fill( t1-t2 );
+          histTransp1Transp2_tseed[i][j]->Fill( t1_seed-t2_seed );
+          histTransp1Transp2_trawseed[i][j]->Fill( t1raw_seed-t2raw_seed );
+          histTransp1Transp2_tcalibseed[i][j]->Fill( t1calib_seed-t2calib_seed );
+          histTransp1Transp2_tcalibseedsept[i][j]->Fill( t1calib_seed_sept-t2calib_seed_sept );
           brk += 1;
         }
         if( seed1_transpCorr>=transpCuts[i] && seed1_transpCorr<transpCuts[i+1] && t1>=tCuts[j] && t1<tCuts[j+1]) {
           histTransp1t1[i][j]->Fill( t1 );// Fill content doesn't matter, just want nEntries
+          histTransp1t1seed[i][j]->Fill( t1_seed );
+          histTransp1t1rawseed[i][j]->Fill( t1raw_seed );
+          histTransp1t1calibseed[i][j]->Fill( t1calib_seed );
+          histTransp1t1calibseedsept[i][j]->Fill( t1calib_seed_sept );
           brk += 1;
         }
         if( seed2_transpCorr>=transpCuts[i] && seed2_transpCorr<transpCuts[i+1] && t2>=tCuts[j] && t2<tCuts[j+1]) {
           histTransp2t2[i][j]->Fill( t2 );// Fill content doesn't matter, just want nEntries
+          histTransp2t2seed[i][j]->Fill( t2_seed );
+          histTransp2t2rawseed[i][j]->Fill( t2raw_seed );
+          histTransp2t2calibseed[i][j]->Fill( t2calib_seed );
+          histTransp2t2calibseedsept[i][j]->Fill( t2calib_seed_sept );
           brk += 1;
         }
       }
@@ -696,7 +760,14 @@ void Zee_beta() {
   cout<<"Generating Avg Time vs Transparency Plots..."<<endl;
   AvgTimeGraph(histTransp1_t1, nSteps, transpMin, transpMax, "Transp1_t1", "", "Seed 1 Transparency", "Average t_{1}");
   AvgTimeGraph(histTransp2_t2, nSteps, transpMin, transpMax, "Transp2_t2", "", "Seed 2 Transparency", "Average t_{2}");
-
+  AvgTimeGraph(histTransp1_t1seed, nSteps, transpMin, transpMax, "Transp1_t1seed", "", "Seed 1 Transparency", "Average t_{1} Seed");
+  AvgTimeGraph(histTransp2_t2seed, nSteps, transpMin, transpMax, "Transp2_t2seed", "", "Seed 2 Transparency", "Average t_{2} Seed");
+  AvgTimeGraph(histTransp1_t1rawseed, nSteps, transpMin, transpMax, "Transp1_t1rawseed", "", "Seed 1 Transparency", "Average t_{1} Raw Seed");
+  AvgTimeGraph(histTransp2_t2rawseed, nSteps, transpMin, transpMax, "Transp2_t2rawseed", "", "Seed 2 Transparency", "Average t_{2} Raw Seed");
+  AvgTimeGraph(histTransp1_t1calibseed, nSteps, transpMin, transpMax, "Transp1_t1calibseed", "", "Seed 1 Transparency", "Average t_{1} Calib Seed");
+  AvgTimeGraph(histTransp2_t2calibseed, nSteps, transpMin, transpMax, "Transp2_t2calibseed", "", "Seed 2 Transparency", "Average t_{2} Calib Seed");
+  AvgTimeGraph(histTransp1_t1calibseedsept, nSteps, transpMin, transpMax, "Transp1_t1calibseedsept", "", "Seed 1 Transparency", "Average t_{1} Calib Seed Sept");
+  AvgTimeGraph(histTransp2_t2calibseedsept, nSteps, transpMin, transpMax, "Transp2_t2calibseedsept", "", "Seed 2 Transparency", "Average t_{2} Calib Seed Sept");
 
   std::cout<<"Generating 1D Eta and Phi Plots..."<<std::endl;
   EtaPhi1D( etaChannels, phiChannels, histEta_t,              histPhi_t,              "t" );
@@ -707,15 +778,38 @@ void Zee_beta() {
 
 
   cout<<"BEGINNING 2D PLOTS"<<endl;
-  cout<<"Generating mean:eta:phi plot..."<<endl;
+  cout<<"Generating mean:eta:phi Plot..."<<endl;
   hist2D( histEtaPhi_t, 1, phiBins,0,360, etaBins,-85.5,85.5, "EtaPhiMean_t", "Mean", "i#phi", "i#eta" );
-  cout<<"Generating sigma:eta:phi plot..."<<endl;
+
+  cout<<"Generating sigma:eta:phi Plot..."<<endl;
   hist2D( histEtaPhi_t, 2, phiBins,0,360, etaBins,-85.5,85.5, "EtaPhiSigma_t","#sigma", "i#phi", "i#eta" );
-  cout<<"Generating sigma:Transparency_1:Transparency_2 plot..."<<endl;
+
+  cout<<"Generating sigma:Transparency 1:Transparency 2 Plots..."<<endl;
   hist2D( histTransp1Transp2_t, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_t", "#sigma of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
-  cout<<"Generating Events:t1:Transparency_1 plot..."<<endl;
+  hist2D( histTransp1Transp2_tseed, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_tseed", "#sigma of t_{1}-t_{2} Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_trawseed, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_trawseed", "#sigma of t_{1}-t_{2} Raw Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_tcalibseed, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_tcalibseed", "#sigma of t_{1}-t_{2} Calib Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_tcalibseedsept, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_tcalibseedsept", "#sigma of t_{1}-t_{2} Calib Seed Sept", "Seed 1 Transparency", "Seed 2 Transparency" );
+
+  cout<<"Generating mean:Transparency 1:Transparency 2 Plots..."<<endl;
+  hist2D( histTransp1Transp2_t, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_t", "Mean of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_tseed, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_tseed", "Mean of t_{1}-t_{2} Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_trawseed, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_trawseed", "Mean of t_{1}-t_{2} Raw Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_tcalibseed, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_tcalibseed", "Mean of t_{1}-t_{2} Calib Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
+  hist2D( histTransp1Transp2_tcalibseedsept, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_tcalibseedsept", "Mean of t_{1}-t_{2} Calib Seed Sept", "Seed 1 Transparency", "Seed 2 Transparency" );
+
+  cout<<"Generating Events:Time 1:Transparency 1 Plots..."<<endl;
   hist2D( histTransp1t1, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1", "Events", "Seed 1 Transparency", "t_{1}" );
-  cout<<"Generating Events:t2:Transparency_2 plot..."<<endl;
+  hist2D( histTransp1t1seed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1seed", "Events", "Seed 1 Transparency", "t_{1} Seed" );
+  hist2D( histTransp1t1rawseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1rawseed", "Events", "Seed 1 Transparency", "t_{1} Raw Seed" );
+  hist2D( histTransp1t1calibseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1calibseed", "Events", "Seed 1 Transparency", "t_{1} Calib Seed" );
+  hist2D( histTransp1t1calibseedsept, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1calibseedsept", "Events", "Seed 1 Transparency", "t_{1} Calib Seed Sept" );
+
+  cout<<"Generating Events:Time 2:Transparency 2 Plots..."<<endl;
   hist2D( histTransp2t2, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2", "Events", "Seed 2 Transparency", "t_{2}" );
+  hist2D( histTransp2t2seed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2seed", "Events", "Seed 2 Transparency", "t_{2} Seed" );
+  hist2D( histTransp2t2rawseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2rawseed", "Events", "Seed 2 Transparency", "t_{2} Raw Seed" );
+  hist2D( histTransp2t2calibseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2calibseed", "Events", "Seed 2 Transparency", "t_{2} Calib Seed" );
+  hist2D( histTransp2t2calibseedsept, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2calibseedsept", "Events", "Seed 2 Transparency", "t_{2} Calib Seed Sept" );
 
 }
