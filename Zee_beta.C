@@ -185,7 +185,7 @@ void SigMeanTGraph(TFile *file, TH1F** hists, string histName, T1 cutArray[], T2
 
 
 
-void SaveHist(TH1 *hist) {
+void SaveHist(TH1 *hist, int linearfit = 0) {
   TCanvas *c = new TCanvas("c","c",200,10,600,400);
   c->SetLeftMargin(0.14);
   c->SetBottomMargin(0.15);
@@ -205,8 +205,23 @@ void SaveHist(TH1 *hist) {
   Yaxis->SetLabelSize(0.06);
   Yaxis->SetTitleOffset(0.85);
 
+  if (linearfit == 1) { // Generalize this feature later
+    //TF1 *linfit = new TF1("linfit", "[0]*x + [1]", 1.3, 2.3);
+    TF1 *linfit = new TF1("linfit", "pol1", 1.3, 2.3);
+    hist->Fit("linfit","QMES", "", 1.3,2.3);//linfit","QMES", 1.3, 2.3);
+    TLatex *tex = new TLatex();
+    tex->SetNDC();
+    tex->SetTextSize(0.080);
+    tex->SetTextFont(42);
+    tex->SetTextColor(kRed);
+    if(linfit->GetParameter(0)>0) 
+    tex->DrawLatex(0.15, 0.8, Form("y = %.2fx + %.2f", linfit->GetParameter(1), linfit->GetParameter(0)));
+    else tex->DrawLatex(0.15, 0.8, Form("y = %.2fx - %.2f", linfit->GetParameter(1), -linfit->GetParameter(0) ));
+  }
+
   gStyle->SetTitleFontSize(0.1);
   gStyle->SetOptStat(0);
+  gStyle->SetOptFit(0);
 
   gErrorIgnoreLevel = kWarning; //Suppress info about created file
   c->SaveAs( (string("plots/pdf/")+ hist->GetName() +".pdf").c_str() );
@@ -334,7 +349,7 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
         if ( hist[i][j]->GetEntries() > 150 ) {
           Fit[i][j] = Fitter(hist[i][j]);
           param[i][j] = GetDGSigma(Fit[i][j]);
-          if ( param[i][j] < 2 ) {
+          if ( param[i][j] < 0.6 ) {
             histFinal->SetBinContent(i+1, j+1, param[i][j]);
             if ( param[i][j]<minParam ) minParam = param[i][j];
           }
@@ -356,7 +371,7 @@ void AvgTimeGraph(TH1F** hists, int bins, float min, float max, string histTitle
   // hists is array of length bins
   TH1F *newHist = new TH1F(histTitle.c_str(), string(Title+";"+xTitle+";"+yTitle).c_str(), bins, min, max);
   for (int i=0; i<bins; i++) newHist->SetBinContent(i+1, hists[i]->GetMean() );
-  SaveHist(newHist);
+  SaveHist(newHist, 1);
 }
 
 
