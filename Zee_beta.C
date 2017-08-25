@@ -185,7 +185,7 @@ void SigMeanTGraph(TFile *file, TH1F** hists, string histName, T1 cutArray[], T2
 
 
 
-void SaveHist(TH1 *hist, int linearfit = 0, float xmin = 1.3, float xmax = 2.3) {
+TF1* SaveHist(TH1 *hist, int linearfit = 0, float xmin = 1.3, float xmax = 2.3) {
   TCanvas *c = new TCanvas("c","c",200,10,600,400);
   c->SetLeftMargin(0.14);
   c->SetBottomMargin(0.15);
@@ -205,8 +205,9 @@ void SaveHist(TH1 *hist, int linearfit = 0, float xmin = 1.3, float xmax = 2.3) 
   Yaxis->SetLabelSize(0.06);
   Yaxis->SetTitleOffset(0.85);
 
-  if (linearfit == 1) { // Generalize this feature later
-    TF1 *linfit = new TF1("linfit", "pol1", xmin, xmax);
+  TF1 *linfit;
+  if (linearfit == 1) { 
+    linfit = new TF1("linfit", "pol1", xmin, xmax);
     hist->Fit("linfit","QMES", "", xmin, xmax);//linfit","QMES", 1.3, 2.3);
     TLatex *tex = new TLatex();
     tex->SetNDC();
@@ -229,6 +230,8 @@ void SaveHist(TH1 *hist, int linearfit = 0, float xmin = 1.3, float xmax = 2.3) 
   c->SaveAs( (string("plots/c/")  + hist->GetName() +".C").c_str() );
   delete c;
   gErrorIgnoreLevel = kInfo;
+  
+  return linfit;
 }
 
 
@@ -367,11 +370,31 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
 
 
 
-void AvgTimeGraph(TH1F** hists, int bins, float min, float max, string histTitle, string Title, string xTitle, string yTitle) {
+void crystalTOF(TH1F* &hist, const vector<float> &energy, const vector<float> &eta, const vector<float> &phi, const vector<float> &time ) {
+  // Finds nearby, high-energy crystals, then fills histogram with their deltaT.
+  vector<float> energyIndex;
+  float energyCut = 10; // GeV
+  for (unsigned int i=0; i<energy.size(); i++) {if (energy[i]>energyCut) energyIndex.push_back(i);}
+
+  float deltaR;
+  float deltaRcut = 0.02;
+  //vector< vector<int> > crystalPairs;
+  for (unsigned int i=0; i<energyIndex.size(); i++) {
+    for (unsigned int j=(i+1); j<energyIndex.size(); j++) {
+      deltaR = sqrt( pow( eta[energyIndex[i]] - eta[energyIndex[j]] , 2)
+                   + pow( phi[energyIndex[i]] - phi[energyIndex[j]] , 2) );
+      if (deltaR < deltaRcut) hist->Fill( time[energyIndex[i]] - time[energyIndex[j]] );//crystalPairs.push_back( {energyIndex[i], energyIndex[j]} );
+    }
+  }
+}
+
+
+
+TF1* AvgTimeGraph(TH1F** hists, int bins, float min, float max, string histTitle, string Title, string xTitle, string yTitle) {
   // hists is array of length bins
   TH1F *newHist = new TH1F(histTitle.c_str(), string(Title+";"+xTitle+";"+yTitle).c_str(), bins, min, max);
   for (int i=0; i<bins; i++) newHist->SetBinContent(i+1, hists[i]->GetMean() );
-  SaveHist(newHist, 1);
+  return SaveHist(newHist, 1);
 }
 
 
@@ -387,6 +410,14 @@ void Zee_beta() {
   unsigned int run;
   unsigned int nPV;
   unsigned int eventTime;
+  vector<float> *ecalElectronRechit_EPtr = new vector<float>;
+  vector<float> *ecalElectronRechit_EtaPtr = new vector<float>;
+  vector<float> *ecalElectronRechit_PhiPtr = new vector<float>;
+  vector<float> *ecalElectronRechit_calibT_legacyPtr = new vector<float>;
+  vector<float> ecalElectronRechit_E; ecalElectronRechit_EPtr = &ecalElectronRechit_E;
+  vector<float> ecalElectronRechit_Eta; ecalElectronRechit_EtaPtr = &ecalElectronRechit_Eta;
+  vector<float> ecalElectronRechit_Phi; ecalElectronRechit_PhiPtr = &ecalElectronRechit_Phi;
+  vector<float> ecalElectronRechit_calibT_legacy; ecalElectronRechit_calibT_legacyPtr = &ecalElectronRechit_calibT_legacy;
 
   float t1;
   float t1_seed;
@@ -420,6 +451,10 @@ void Zee_beta() {
   tree->SetBranchAddress("run",&run);
   tree->SetBranchAddress("nPV",&nPV);
   tree->SetBranchAddress("eventTime",&eventTime);
+  tree->SetBranchAddress("ecalElectronRechit_E",&ecalElectronRechit_EPtr);
+  tree->SetBranchAddress("ecalElectronRechit_Eta",&ecalElectronRechit_EtaPtr);
+  tree->SetBranchAddress("ecalElectronRechit_Phi",&ecalElectronRechit_PhiPtr);
+  tree->SetBranchAddress("ecalElectronRechit_calibT_lagacy",&ecalElectronRechit_calibT_legacyPtr);
 
   tree->SetBranchAddress("t1",&t1);
   tree->SetBranchAddress("t1_seed",&t1_seed);
@@ -492,6 +527,8 @@ void Zee_beta() {
   float tStepSize = CutArray(tCuts, nSteps, tMin, tMax);
 
   // Declare Histograms
+  TH1F *histCrystalTOF = new TH1F( "histCrystalTOF",";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);;
+
   TH1F *histRun_t[nSteps];
   TH1F *histRun_tseed[nSteps];
   TH1F *histRun_trawseed[nSteps];
@@ -540,7 +577,7 @@ void Zee_beta() {
   TH1F *histTransp1_t1calibseedsept[nSteps];
   TH1F *histTransp2_t2calibseedsept[nSteps];
 
-  int BinSize = 5; // 1, 2, 5, or 10
+  int BinSize = 10; // 1, 2, 5, or 10
   int phiChannels = 360;
   int etaChannels = 170;
   int phiBins = phiChannels/BinSize;
@@ -637,6 +674,9 @@ void Zee_beta() {
     tree->GetEntry(iEntry);
 
     if( !(ele1Pt>30 && ele2Pt>30 && mass>75 && mass<105 && ele1IsEB && ele2IsEB) ) continue; //Prelim cuts for everything
+
+    //Crystal TOF
+    crystalTOF(histCrystalTOF, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_calibT_legacy);
 
     //Time resolution vs Run
     for (int i=0; i<nSteps; i++) {
@@ -745,6 +785,9 @@ void Zee_beta() {
   TFile *file = TFile::Open(("output"+filename).c_str(), "RECREATE");
   file->cd();
 
+  file->WriteTObject(histCrystalTOF, "histCrystalTOF", "WriteDelete");
+  cout << "Crystal TOF plot saved" << endl;
+
   std::cout<<"Generating Run Plots..."<<std::endl;
   SigMeanTGraph(file, histRun_t, "histRun_t", runCuts, stepSize, nSteps, "", "Run Number", "run_t");
   SigMeanTGraph(file, histRun_tseed, "histRun_tseed", runCuts, stepSize, nSteps, "Seed", "Run Number", "run_tseed");
@@ -775,16 +818,17 @@ void Zee_beta() {
 
 
   cout<<"Generating Avg Time vs Transparency Plots..."<<endl;
-  AvgTimeGraph(histTransp1_t1, nSteps, transpMin, transpMax, "Transp1_t1", "", "Seed 1 Transparency", "Average t_{1}");
-  AvgTimeGraph(histTransp2_t2, nSteps, transpMin, transpMax, "Transp2_t2", "", "Seed 2 Transparency", "Average t_{2}");
-  AvgTimeGraph(histTransp1_t1seed, nSteps, transpMin, transpMax, "Transp1_t1seed", "", "Seed 1 Transparency", "Average t_{1} Seed");
-  AvgTimeGraph(histTransp2_t2seed, nSteps, transpMin, transpMax, "Transp2_t2seed", "", "Seed 2 Transparency", "Average t_{2} Seed");
+  TF1 *fit1_t = AvgTimeGraph(histTransp1_t1, nSteps, transpMin, transpMax, "Transp1_t1", "", "Seed 1 Transparency", "Average t_{1}");
+  TF1 *fit2_t = AvgTimeGraph(histTransp2_t2, nSteps, transpMin, transpMax, "Transp2_t2", "", "Seed 2 Transparency", "Average t_{2}");
+  TF1 *fit1_tseed = AvgTimeGraph(histTransp1_t1seed, nSteps, transpMin, transpMax, "Transp1_t1seed", "", "Seed 1 Transparency", "Average t_{1} Seed");
+  TF1 *fit2_tseed = AvgTimeGraph(histTransp2_t2seed, nSteps, transpMin, transpMax, "Transp2_t2seed", "", "Seed 2 Transparency", "Average t_{2} Seed");
   AvgTimeGraph(histTransp1_t1rawseed, nSteps, transpMin, transpMax, "Transp1_t1rawseed", "", "Seed 1 Transparency", "Average t_{1} Raw Seed");
   AvgTimeGraph(histTransp2_t2rawseed, nSteps, transpMin, transpMax, "Transp2_t2rawseed", "", "Seed 2 Transparency", "Average t_{2} Raw Seed");
   AvgTimeGraph(histTransp1_t1calibseed, nSteps, transpMin, transpMax, "Transp1_t1calibseed", "", "Seed 1 Transparency", "Average t_{1} Calib Seed");
   AvgTimeGraph(histTransp2_t2calibseed, nSteps, transpMin, transpMax, "Transp2_t2calibseed", "", "Seed 2 Transparency", "Average t_{2} Calib Seed");
   AvgTimeGraph(histTransp1_t1calibseedsept, nSteps, transpMin, transpMax, "Transp1_t1calibseedsept", "", "Seed 1 Transparency", "Average t_{1} Calib Seed Sept");
   AvgTimeGraph(histTransp2_t2calibseedsept, nSteps, transpMin, transpMax, "Transp2_t2calibseedsept", "", "Seed 2 Transparency", "Average t_{2} Calib Seed Sept");
+
 
   std::cout<<"Generating 1D Eta and Phi Plots..."<<std::endl;
   EtaPhi1D( etaChannels, phiChannels, histEta_t,              histPhi_t,              "t" );
@@ -798,8 +842,10 @@ void Zee_beta() {
   cout<<"Generating mean:eta:phi Plot..."<<endl;
   hist2D( histEtaPhi_t, 1, phiBins,0,360, etaBins,-85,85, "EtaPhiMean_t", "Mean", "i#phi", "i#eta" );
 
+
   cout<<"Generating sigma:eta:phi Plot..."<<endl;
   hist2D( histEtaPhi_t, 2, phiBins,0,360, etaBins,-85,85, "EtaPhiSigma_t","#sigma", "i#phi", "i#eta" );
+
 
   cout<<"Generating sigma:Transparency 1:Transparency 2 Plots..."<<endl;
   hist2D( histTransp1Transp2_t, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_t", "#sigma of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
@@ -808,12 +854,14 @@ void Zee_beta() {
   hist2D( histTransp1Transp2_tcalibseed, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_tcalibseed", "#sigma of t_{1}-t_{2} Calib Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
   hist2D( histTransp1Transp2_tcalibseedsept, 2, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Sigma_tcalibseedsept", "#sigma of t_{1}-t_{2} Calib Seed Sept", "Seed 1 Transparency", "Seed 2 Transparency" );
 
+
   cout<<"Generating mean:Transparency 1:Transparency 2 Plots..."<<endl;
   hist2D( histTransp1Transp2_t, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_t", "Mean of t_{1}-t_{2}", "Seed 1 Transparency", "Seed 2 Transparency" );
   hist2D( histTransp1Transp2_tseed, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_tseed", "Mean of t_{1}-t_{2} Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
   hist2D( histTransp1Transp2_trawseed, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_trawseed", "Mean of t_{1}-t_{2} Raw Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
   hist2D( histTransp1Transp2_tcalibseed, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_tcalibseed", "Mean of t_{1}-t_{2} Calib Seed", "Seed 1 Transparency", "Seed 2 Transparency" );
   hist2D( histTransp1Transp2_tcalibseedsept, 1, nSteps,transpMin,transpMax, nSteps,transpMin,transpMax, "Transp1Transp2Mean_tcalibseedsept", "Mean of t_{1}-t_{2} Calib Seed Sept", "Seed 1 Transparency", "Seed 2 Transparency" );
+
 
   cout<<"Generating Events:Time 1:Transparency 1 Plots..."<<endl;
   hist2D( histTransp1t1, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1", "Events", "Seed 1 Transparency", "t_{1}" );
@@ -822,11 +870,85 @@ void Zee_beta() {
   hist2D( histTransp1t1calibseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1calibseed", "Events", "Seed 1 Transparency", "t_{1} Calib Seed" );
   hist2D( histTransp1t1calibseedsept, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp1t1calibseedsept", "Events", "Seed 1 Transparency", "t_{1} Calib Seed Sept" );
 
+
   cout<<"Generating Events:Time 2:Transparency 2 Plots..."<<endl;
   hist2D( histTransp2t2, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2", "Events", "Seed 2 Transparency", "t_{2}" );
   hist2D( histTransp2t2seed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2seed", "Events", "Seed 2 Transparency", "t_{2} Seed" );
   hist2D( histTransp2t2rawseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2rawseed", "Events", "Seed 2 Transparency", "t_{2} Raw Seed" );
   hist2D( histTransp2t2calibseed, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2calibseed", "Events", "Seed 2 Transparency", "t_{2} Calib Seed" );
   hist2D( histTransp2t2calibseedsept, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2calibseedsept", "Events", "Seed 2 Transparency", "t_{2} Calib Seed Sept" );
+
+
+  // THE FOLLOWING SECTION HAD IMPLEMENTED A TRANSPARENCY CORRECTION, BUT IT AFFECTED <10% OF EVENTS, SO IT WAS PHASED OUT
+/*
+  cout<<"Looping through events again, to correct for linear transparency trend."<<endl;
+  TH1F *histRun_tnew[nSteps];
+  TH1F *histRun_tseednew[nSteps];
+  TH1F *check[nSteps];
+  for (int i=0; i<nSteps; i++) {
+    histRun_tnew[i] = new TH1F( Form("histRun_tnew[%d]",i),";t_{1}-t_{2};Entries", 120, -3, 3);
+    histRun_tseednew[i] = new TH1F( Form("histRun_tseednew[%d]",i),";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
+    check[i] = new TH1F( Form("check[%d]",i),"",120, -3, 3);
+  }
+  float transpmin = 1.3, transpmax=2.3;
+  int index = 0;
+
+  for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
+    if (iEntry %500000 == 0) cout << "Processing Event " << iEntry << "\n";
+    tree->GetEntry(iEntry);
+
+    if( !(ele1Pt>30 && ele2Pt>30 && mass>75 && mass<105 && ele1IsEB && ele2IsEB) ) continue; //Prelim cuts for everything
+
+    //Time resolution vs Run
+    for (int i=0; i<nSteps; i++) {
+      if( !(run>=runCuts[i] && run<runCuts[i+1]) ) continue;
+      // Update t1
+      float t1new, t1seednew, t2new, t2seednew;
+      if ( seed1_transpCorr<transpmin ) {
+        t1new = t1; // Maybe try: t1 - (fit1->GetParameter(0) + fit1->GetParameter(1)*transpmin)
+        t1seednew = t1_seed;
+      }
+      else if ( seed1_transpCorr<transpmax ) {
+        t1new = t1 - (fit1_t->GetParameter(0) + fit1_t->GetParameter(1)*seed1_transpCorr) ;
+        t1seednew = t1_seed - (fit1_tseed->GetParameter(0) + fit1_tseed->GetParameter(1)*seed1_transpCorr) ;
+index+=1;      }
+      else {
+        t1new = t1 - (fit1_t->GetParameter(0) + fit1_t->GetParameter(1)*transpmax);
+        t1seednew = t1_seed - (fit1_tseed->GetParameter(0) + fit1_tseed->GetParameter(1)*transpmax) ;
+index+=1;      }
+      // Update t2
+      if ( seed2_transpCorr<transpmin ) {
+        t2new = t2; // Maybe try: t1 - (fit1->GetParameter(0) + fit1->GetParameter(1)*transpmin)
+        t2seednew = t2_seed;
+      }
+      else if ( seed2_transpCorr<transpmax ) {
+        t2new = t2 - (fit2_t->GetParameter(0) + fit2_t->GetParameter(1)*seed2_transpCorr) ;
+        t2seednew = t2_seed - (fit2_tseed->GetParameter(0) + fit2_tseed->GetParameter(1)*seed2_transpCorr) ;
+      }
+      else {
+        t2new = t2 - (fit2_t->GetParameter(0) + fit2_t->GetParameter(1)*transpmax);
+        t2seednew = t2_seed - (fit2_tseed->GetParameter(0) + fit2_tseed->GetParameter(1)*transpmax) ;
+      }
+
+      histRun_tnew[i]->Fill( t1new-t2new );
+      histRun_tseednew[i]->Fill( t1seednew-t2seednew );
+
+      for (int j=0; i<nSteps; j++) {
+        if(seed1_transpCorr>=transpCuts[j] && seed1_transpCorr<transpCuts[j+1]) { 
+          check[j]->Fill( t1seednew );
+          break;
+        }
+      }
+      break; // Don't bother to check other cases in the for loop
+    }
+  }
+    
+cout<<"There were "<<index<<" events modified for transparency."<<endl;  
+
+  SigMeanTGraph(file, histRun_tnew, "histRun_tnew", runCuts, stepSize, nSteps, "Corrected", "Run Number", "run_tnew");
+  SigMeanTGraph(file, histRun_tseednew, "histRun_tseednew", runCuts, stepSize, nSteps, "Seed Corrected", "Run Number", "run_tseednew");
+
+  AvgTimeGraph(check, nSteps, transpMin, transpMax, "Transp1_check", "", "Seed 1 Transparency", "Average t_{1}");
+  */
 
 }
