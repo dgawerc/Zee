@@ -372,20 +372,27 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
 
 void crystalTOF(TH1F* &hist, const vector<float> &energy, const vector<float> &eta, const vector<float> &phi, const vector<float> &time ) {
   // Finds nearby, high-energy crystals, then fills histogram with their deltaT.
-  vector<float> energyIndex;
-  float energyCut = 10; // GeV
-  for (unsigned int i=0; i<energy.size(); i++) {if (energy[i]>energyCut) energyIndex.push_back(i);}
-
-  float deltaR;
+  float energyCut_Abs = 10; // GeV
+  auto maxEnergyItr = max_element( energy.begin(), energy.end() );
+  float maxEnergy = *maxEnergyItr;
+  int maxEnergyElt;
+  if (maxEnergy > energyCut_Abs) maxEnergyElt = distance(energy.begin(), maxEnergyItr);
+  else return;
+  float energyCut_Rel = 0.7 * maxEnergy;
   float deltaRcut = 0.02;
-  //vector< vector<int> > crystalPairs;
-  for (unsigned int i=0; i<energyIndex.size(); i++) {
-    for (unsigned int j=(i+1); j<energyIndex.size(); j++) {
-      deltaR = sqrt( pow( eta[energyIndex[i]] - eta[energyIndex[j]] , 2)
-                   + pow( phi[energyIndex[i]] - phi[energyIndex[j]] , 2) );
-      if (deltaR < deltaRcut) hist->Fill( time[energyIndex[i]] - time[energyIndex[j]] );//crystalPairs.push_back( {energyIndex[i], energyIndex[j]} );
-    }
+  float deltaR;
+  vector<int> candidate_index; // Store indices of possible nearby crystals with 2nd highest energy
+  for (unsigned int i=0; i<eta.size(); i++) {
+    deltaR = sqrt( pow( eta[maxEnergyElt] - eta[i] , 2)
+                 + pow( phi[maxEnergyElt] - phi[i] , 2) );
+    if ( i!=maxEnergyElt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
   }
+  if (candidate_index.size() == 0) {/*cout<< "0 possible 2nd crystals"<<endl;*/ return;}
+  //else cout<< candidate_index.size() << " possible 2nd crystals" <<endl;
+  vector<int> candidate_energy;
+  for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
+  int crystal2Elt = candidate_index[ distance( candidate_energy.begin(), max_element(candidate_energy.begin(), candidate_energy.end()) ) ];
+  hist->Fill( time[maxEnergyElt] - time[crystal2Elt] );
 }
 
 
