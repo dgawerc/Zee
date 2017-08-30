@@ -67,7 +67,7 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
   // Correct For Low-Event Histograms:
   int  nBad = 0;
   for (int i=0; i<points; i++) {
-    if (hist[i]->GetEntries() < 1E3) {
+    if (hist[i]->GetEntries() < 250) {
       for (int j=i; j<(points-1); j++){
         X[j-nBad] = X[j-nBad+1]; // delete bad element and shift others left
         Y[j-nBad] = Y[j-nBad+1]; // Note last element gets duplicated but also stays where it is
@@ -77,6 +77,7 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
       nBad +=1;
     }
   }
+  if (nBad == points) {cout<<"Plot could not be made. Too few statistics."<<endl; return;}
 
   // Make the Plot:
   TCanvas *c = new TCanvas("c","c",200,10,600,400);
@@ -371,46 +372,69 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
 
 
 template <class T1>
-void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, float energyUpperLimit, const vector<float> &energy, const vector<float> &eta, const vector<float> &phi, const vector<float> &transp, const vector<float> &time, int run, int xOpt = 1 ) {
+void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, float energyUpperLimit, const vector<float> &energy, const vector<float> &eta, const vector<float> &phi, const vector<float> &transp, const vector<float> &time, int run, int xOpt, vector<int> &skip) {
   // Finds nearby, high-energy crystals, then fills histogram with their deltaT.
-  auto maxEnergyItr = max_element( energy.begin(), energy.end() );
-  float maxEnergy = *maxEnergyItr;
-  int maxEnergyElt;
-  if (maxEnergy > energyCut_Abs) maxEnergyElt = distance(energy.begin(), maxEnergyItr);
-  else return;
-  float energyCut_Rel = 0.5 * maxEnergy;
-  float deltaRcut = 0.03;
-  float deltaR;
-  vector<int> candidate_index; // Store indices of possible nearby crystals with 2nd highest energy
-  for (unsigned int i=0; i<eta.size(); i++) {
-    deltaR = sqrt( pow( eta[maxEnergyElt] - eta[i] , 2)
-                 + pow( phi[maxEnergyElt] - phi[i] , 2) );
-    if ( i!=maxEnergyElt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
+  // Returns a vector of the 3 indices, in decreasing energy order.
+  if ( skip.empty() ) {
+    auto maxEnergyItr = max_element( energy.begin(), energy.end() );
+    float maxEnergy = *maxEnergyItr;
+    if ( !(maxEnergy > energyCut_Abs) ) return;
+    int crystal1Elt = distance(energy.begin(), maxEnergyItr);
+    float energyCut_Rel = 0.5 * maxEnergy;
+    float deltaRcut = 0.03;
+    float deltaR;
+    vector<int> candidate_index; // Store indices of possible nearby crystals with 2nd highest energy
+    for (unsigned int i=0; i<eta.size(); i++) {
+      deltaR = sqrt( pow( eta[crystal1Elt] - eta[i] , 2)
+                   + pow( phi[crystal1Elt] - phi[i] , 2) );
+      if ( i!=crystal1Elt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
+    }
+    if (candidate_index.size() < 1) return;
+    vector<int> candidate_energy;
+    for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
+    int tempElt = distance( candidate_energy.begin(), max_element(candidate_energy.begin(), candidate_energy.end()) );
+    int crystal2Elt = candidate_index[ tempElt ];
+    // Repeat exact process for 3rd crystal
+    candidate_index.clear();
+    candidate_energy.clear();
+    energyCut_Rel = 0.5 * energy[crystal2Elt];
+    for (unsigned int i=0; i<eta.size(); i++) {
+      deltaR = sqrt( pow( eta[crystal1Elt] - eta[i] , 2)
+                   + pow( phi[crystal1Elt] - phi[i] , 2) );
+      if ( i!=crystal1Elt && i!=crystal2Elt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
+    }
+    if (candidate_index.size() < 1) return;
+    for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
+    tempElt = distance( candidate_energy.begin(), max_element(candidate_energy.begin(), candidate_energy.end()) );
+    int crystal3Elt = candidate_index[ tempElt ];
+
+    skip.push_back(crystal1Elt);
+    skip.push_back(crystal2Elt);
+    skip.push_back(crystal3Elt);
   }
-  if (candidate_index.size() == 0) return;
-  vector<int> candidate_energy;
-  for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
-  int crystal2Elt = candidate_index[ distance( candidate_energy.begin(), max_element(candidate_energy.begin(), candidate_energy.end()) ) ];
+  // Combine times of crystals 2 and 3
+  float newTime = (time[ skip[1] ]*energy[ skip[1] ] + time[ skip[2] ]*energy[ skip[2] ]) / (energy[ skip[2] ] + energy[ skip[3] ]);
+
   if (xOpt == 1) { // Energy
     for (unsigned int i=0; i<nBins; i++) {
-      if ( !(maxEnergy > cutArray[i] && maxEnergy < cutArray[i+1]) ) continue;
-      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      if ( !(energy[skip[0]] > cutArray[i] && energy[skip[0]] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[skip[0]] - newTime );
       break;
     }
   }
 
   else if (xOpt == 2) { // Eta
     for (unsigned int i=0; i<nBins; i++) {
-      if ( !(eta[maxEnergyElt] > cutArray[i] && eta[maxEnergyElt] < cutArray[i+1]) ) continue;
-      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      if ( !(eta[skip[0]] > cutArray[i] && eta[skip[0]] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[skip[0]] - newTime );
       break;
     }
   }
 
   else if (xOpt == 3) { // Phi
     for (unsigned int i=0; i<nBins; i++) {
-      if ( !(phi[maxEnergyElt] > cutArray[i] && phi[maxEnergyElt] < cutArray[i+1]) ) continue;
-      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      if ( !(phi[skip[0]] > cutArray[i] && phi[skip[0]] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[skip[0]] - newTime );
       break;
     }
   }
@@ -418,19 +442,18 @@ void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, flo
   else if (xOpt == 4) { // Run
     for (unsigned int i=0; i<nBins; i++) {
       if ( !(run > cutArray[i] && run < cutArray[i+1]) ) continue;
-      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      hists[i]->Fill( time[skip[0]] - newTime );
       break;
     }
   }
 
   else if (xOpt == 5) { // Transparency
     for (unsigned int i=0; i<nBins; i++) {
-      if ( !(transp[maxEnergyElt] > cutArray[i] && transp[maxEnergyElt] < cutArray[i+1]) ) continue;
-      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      if ( !(transp[skip[0]] > cutArray[i] && transp[skip[0]] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[skip[0]] - newTime );
       break;
     }
   }
-
 }
 
 
@@ -745,11 +768,12 @@ void Zee_beta() {
     if( !(ele1Pt>30 && ele2Pt>30 && mass>75 && mass<105 && ele1IsEB && ele2IsEB) ) continue; //Prelim cuts for everything
 
     //Crystal TOF
-    crystalTOF(histCrystalTOFEnergy, crystalEnergyCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 1);
-    crystalTOF(histCrystalTOFEta, etaCuts, etaChannels, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 2);
-    crystalTOF(histCrystalTOFPhi, phiCuts, phiChannels, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 3);
-    crystalTOF(histCrystalTOFRun, runCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 4);
-    crystalTOF(histCrystalTOFTransp, transpCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 5);
+    vector<int> energyElts;
+    crystalTOF(histCrystalTOFEnergy, crystalEnergyCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 1, energyElts );
+    crystalTOF(histCrystalTOFEta, etaCuts, etaChannels, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 2, energyElts);
+    crystalTOF(histCrystalTOFPhi, phiCuts, phiChannels, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 3, energyElts);
+    crystalTOF(histCrystalTOFRun, runCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 4, energyElts);
+    crystalTOF(histCrystalTOFTransp, transpCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 5, energyElts);
 
     //Time resolution vs Run
     for (int i=0; i<nSteps; i++) {
