@@ -165,7 +165,7 @@ void SigMeanTGraph(TFile *file, TH1F** hists, string histName, T1 cutArray[], T2
   float MeanEr[nSteps];
 
   for (int i=0; i<nSteps; i++) {
-    if ( !(hists[i]->GetEntries() != 0) ) continue;
+    if ( !(hists[i]->GetEntries() > 100) ) continue;
     Fit[i] = Fitter(hists[i]);
     file->WriteTObject(hists[i], ( histName+Form("[%d]",i) ).c_str(),"WriteDelete");
     Sigma[i] = GetDGSigma( Fit[i] );      //Fit[i]->GetParameter(2);
@@ -179,8 +179,8 @@ void SigMeanTGraph(TFile *file, TH1F** hists, string histName, T1 cutArray[], T2
   for(int i=0; i<nSteps; i++) xVals[i] = cutArray[i] + stepSize/2;
   std::fill(xErr, xErr+nSteps, float(stepSize)/2);
 
-  scatterPlot(xVals, Sigma, xErr, SigEr, nSteps, hists, /*hists[0]->GetXaxis()->GetTitle()*/ xTitle.c_str(), "Time Resolution (ns)", ("#sigma of t_{1}-t_{2} "+Time).c_str() , (outFile+"_Sigma").c_str() );
-  scatterPlot(xVals, Mean, xErr, MeanEr, nSteps, hists, /*hists[0]->GetXaxis()->GetTitle()*/ xTitle.c_str(), "Mean", ("Mean of t_{1}-t_{2} "+Time).c_str() , (outFile+"_Mean").c_str() );
+  scatterPlot(xVals, Sigma, xErr, SigEr, nSteps, hists, xTitle.c_str(), "Time Resolution (ns)", ("#sigma of t_{1}-t_{2} "+Time).c_str() , (outFile+"_Sigma").c_str() );
+  scatterPlot(xVals, Mean, xErr, MeanEr, nSteps, hists, xTitle.c_str(), "Mean", ("Mean of t_{1}-t_{2} "+Time).c_str() , (outFile+"_Mean").c_str() );
 }
 
 
@@ -370,16 +370,16 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
 
 
 
-void crystalTOF(TH1F* &hist, const vector<float> &energy, const vector<float> &eta, const vector<float> &phi, const vector<float> &time ) {
+template <class T1>
+void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, float energyUpperLimit, const vector<float> &energy, const vector<float> &eta, const vector<float> &phi, const vector<float> &transp, const vector<float> &time, int run, int xOpt = 1 ) {
   // Finds nearby, high-energy crystals, then fills histogram with their deltaT.
-  float energyCut_Abs = 10; // GeV
   auto maxEnergyItr = max_element( energy.begin(), energy.end() );
   float maxEnergy = *maxEnergyItr;
   int maxEnergyElt;
   if (maxEnergy > energyCut_Abs) maxEnergyElt = distance(energy.begin(), maxEnergyItr);
   else return;
-  float energyCut_Rel = 0.7 * maxEnergy;
-  float deltaRcut = 0.02;
+  float energyCut_Rel = 0.5 * maxEnergy;
+  float deltaRcut = 0.03;
   float deltaR;
   vector<int> candidate_index; // Store indices of possible nearby crystals with 2nd highest energy
   for (unsigned int i=0; i<eta.size(); i++) {
@@ -387,12 +387,50 @@ void crystalTOF(TH1F* &hist, const vector<float> &energy, const vector<float> &e
                  + pow( phi[maxEnergyElt] - phi[i] , 2) );
     if ( i!=maxEnergyElt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
   }
-  if (candidate_index.size() == 0) {/*cout<< "0 possible 2nd crystals"<<endl;*/ return;}
-  //else cout<< candidate_index.size() << " possible 2nd crystals" <<endl;
+  if (candidate_index.size() == 0) return;
   vector<int> candidate_energy;
   for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
   int crystal2Elt = candidate_index[ distance( candidate_energy.begin(), max_element(candidate_energy.begin(), candidate_energy.end()) ) ];
-  hist->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+  if (xOpt == 1) { // Energy
+    for (unsigned int i=0; i<nBins; i++) {
+      if ( !(maxEnergy > cutArray[i] && maxEnergy < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      break;
+    }
+  }
+
+  else if (xOpt == 2) { // Eta
+    for (unsigned int i=0; i<nBins; i++) {
+      if ( !(eta[maxEnergyElt] > cutArray[i] && eta[maxEnergyElt] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      break;
+    }
+  }
+
+  else if (xOpt == 3) { // Phi
+    for (unsigned int i=0; i<nBins; i++) {
+      if ( !(phi[maxEnergyElt] > cutArray[i] && phi[maxEnergyElt] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      break;
+    }
+  }
+
+  else if (xOpt == 4) { // Run
+    for (unsigned int i=0; i<nBins; i++) {
+      if ( !(run > cutArray[i] && run < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      break;
+    }
+  }
+
+  else if (xOpt == 5) { // Transparency
+    for (unsigned int i=0; i<nBins; i++) {
+      if ( !(transp[maxEnergyElt] > cutArray[i] && transp[maxEnergyElt] < cutArray[i+1]) ) continue;
+      hists[i]->Fill( time[maxEnergyElt] - time[crystal2Elt] );
+      break;
+    }
+  }
+
 }
 
 
@@ -420,10 +458,12 @@ void Zee_beta() {
   vector<float> *ecalElectronRechit_EPtr = new vector<float>;
   vector<float> *ecalElectronRechit_EtaPtr = new vector<float>;
   vector<float> *ecalElectronRechit_PhiPtr = new vector<float>;
+  vector<float> *ecalElectronRechit_transpCorrPtr = new vector<float>;
   vector<float> *ecalElectronRechit_calibT_legacyPtr = new vector<float>;
   vector<float> ecalElectronRechit_E; ecalElectronRechit_EPtr = &ecalElectronRechit_E;
   vector<float> ecalElectronRechit_Eta; ecalElectronRechit_EtaPtr = &ecalElectronRechit_Eta;
   vector<float> ecalElectronRechit_Phi; ecalElectronRechit_PhiPtr = &ecalElectronRechit_Phi;
+  vector<float> ecalElectronRechit_transpCorr; ecalElectronRechit_transpCorrPtr = &ecalElectronRechit_transpCorr;
   vector<float> ecalElectronRechit_calibT_legacy; ecalElectronRechit_calibT_legacyPtr = &ecalElectronRechit_calibT_legacy;
 
   float t1;
@@ -461,6 +501,7 @@ void Zee_beta() {
   tree->SetBranchAddress("ecalElectronRechit_E",&ecalElectronRechit_EPtr);
   tree->SetBranchAddress("ecalElectronRechit_Eta",&ecalElectronRechit_EtaPtr);
   tree->SetBranchAddress("ecalElectronRechit_Phi",&ecalElectronRechit_PhiPtr);
+  tree->SetBranchAddress("ecalElectronRechit_transpCorr",&ecalElectronRechit_transpCorrPtr);
   tree->SetBranchAddress("ecalElectronRechit_calibT_lagacy",&ecalElectronRechit_calibT_legacyPtr);
 
   tree->SetBranchAddress("t1",&t1);
@@ -493,6 +534,8 @@ void Zee_beta() {
   std::cout<<"Number of Events in Sample: "<<nentries<<std::endl;
 
   // Find values of min and max
+  float crystalEnergyMin = 5;
+  float crystalEnergyMax = 105;
   float transpMin   = 0.4;
   float transpMax   = 3.4;
   unsigned int runMin = 10E7;
@@ -506,7 +549,7 @@ void Zee_beta() {
 
   for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
     tree->GetEntry(iEntry);
-    
+
     if      (run < runMin) runMin = run;
     else if (run > runMax) runMax = run; // the "else" should speed it up. If the data order is monotonic, remove it
 
@@ -533,9 +576,10 @@ void Zee_beta() {
   float tCuts[nSteps + 1];
   float tStepSize = CutArray(tCuts, nSteps, tMin, tMax);
 
-  // Declare Histograms
-  TH1F *histCrystalTOF = new TH1F( "histCrystalTOF",";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);;
+  float crystalEnergyCuts[nSteps + 1];
+  float crystalEnergyStepSize = CutArray(crystalEnergyCuts, nSteps, crystalEnergyMin, crystalEnergyMax);
 
+  // Declare Histograms
   TH1F *histRun_t[nSteps];
   TH1F *histRun_tseed[nSteps];
   TH1F *histRun_trawseed[nSteps];
@@ -589,6 +633,10 @@ void Zee_beta() {
   int etaChannels = 170;
   int phiBins = phiChannels/BinSize;
   int etaBins = etaChannels/BinSize;
+  float etaCuts[etaChannels + 1];
+  float etaStepSize = CutArray(etaCuts, etaChannels, float(-1.479), float(1.479));
+  float phiCuts[phiChannels + 1];
+  float phiStepSize = CutArray(phiCuts, phiChannels, float(-3.14), float(3.14));
   vector< vector<TH1F*> > histEtaPhi_t (phiBins, vector<TH1F*>(etaBins)); // Phi from 0 to 360 inclusive. Eta from -85 to 85 inclusive. Bins of 3.
   TH1F *histEta_t[etaChannels];
   TH1F *histPhi_t[phiChannels];
@@ -601,8 +649,18 @@ void Zee_beta() {
   TH1F *histEta_tcalibseedsept[etaChannels];
   TH1F *histPhi_tcalibseedsept[phiChannels];
 
+  TH1F *histCrystalTOFEnergy[nSteps];
+  TH1F *histCrystalTOFTransp[nSteps];
+  TH1F *histCrystalTOFRun[nSteps];
+  TH1F *histCrystalTOFPhi[phiChannels];
+  TH1F *histCrystalTOFEta[etaChannels];
+
   // Initialize Histograms
   for(int i=0; i<nSteps; i++) {
+    histCrystalTOFEnergy[i] = new TH1F( Form("histCrystalTOFEnergy[%d]",i),";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
+    histCrystalTOFTransp[i] = new TH1F( Form("histCrystalTOFTransp[%d]",i),";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
+    histCrystalTOFRun[i] = new TH1F( Form("histCrystalTOFRun[%d]",i),";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
+
     histRun_t[i]     = new TH1F( Form("histRun_t[%d]",i) ,";t_{1}-t_{2};Entries", 120, -3, 3);
     histRun_tseed[i] = new TH1F( Form("histRun_tseed[%d]",i) ,";t_{1}-t_{2} seed;Entries", 120, -3, 3);
     histRun_trawseed[i] = new TH1F( Form("histRun_trawseed[%d]",i) ,";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
@@ -665,6 +723,8 @@ void Zee_beta() {
     histEta_trawseed[i] = new TH1F( Form("histEta_trawseed[%d]",i),";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
     histEta_tcalibseed[i] = new TH1F( Form("histEtacalibseed_t[%d]",i),";t_{1}-t_{2} calib seed;Entries", 120, -3, 3);
     histEta_tcalibseedsept[i] = new TH1F( Form("histEta_tcalibseedsept[%d]",i),";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
+
+    histCrystalTOFEta[i] = new TH1F( Form("histCrystalTOFEta[%d]",i),";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
   }
   for (int i=0; i<phiChannels; i++) {
     histPhi_t[i] = new TH1F( Form("histPhi_t[%d]",i),";t_{1}-t_{2};Entries", 120, -3, 3);
@@ -672,6 +732,8 @@ void Zee_beta() {
     histPhi_trawseed[i] = new TH1F( Form("histPhi_trawseed[%d]",i),";t_{1}-t_{2} raw seed;Entries", 120, -5, 5);
     histPhi_tcalibseed[i] = new TH1F( Form("histPhi_tcalibseed[%d]",i),";t_{1}-t_{2 calib seed};Entries", 120, -3, 3);
     histPhi_tcalibseedsept[i] = new TH1F( Form("histPhi_tcalibseedsept[%d]",i),";t_{1}-t_{2} calib seed sept;Entries", 120, -3, 3);
+
+    histCrystalTOFPhi[i] = new TH1F( Form("histCrystalTOFPhi[%d]",i),";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
   }
 
 
@@ -683,7 +745,11 @@ void Zee_beta() {
     if( !(ele1Pt>30 && ele2Pt>30 && mass>75 && mass<105 && ele1IsEB && ele2IsEB) ) continue; //Prelim cuts for everything
 
     //Crystal TOF
-    crystalTOF(histCrystalTOF, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_calibT_legacy);
+    crystalTOF(histCrystalTOFEnergy, crystalEnergyCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 1);
+    crystalTOF(histCrystalTOFEta, etaCuts, etaChannels, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 2);
+    crystalTOF(histCrystalTOFPhi, phiCuts, phiChannels, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 3);
+    crystalTOF(histCrystalTOFRun, runCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 4);
+    crystalTOF(histCrystalTOFTransp, transpCuts, nSteps, crystalEnergyMin, crystalEnergyMax, ecalElectronRechit_E, ecalElectronRechit_Eta, ecalElectronRechit_Phi, ecalElectronRechit_transpCorr, ecalElectronRechit_calibT_legacy, run, 5);
 
     //Time resolution vs Run
     for (int i=0; i<nSteps; i++) {
@@ -792,8 +858,12 @@ void Zee_beta() {
   TFile *file = TFile::Open(("output"+filename).c_str(), "RECREATE");
   file->cd();
 
-  file->WriteTObject(histCrystalTOF, "histCrystalTOF", "WriteDelete");
-  cout << "Crystal TOF plot saved" << endl;
+  cout << "Generating Crystal TOF Plots..." << endl;
+  SigMeanTGraph(file, histCrystalTOFEnergy, "histCrystalTOFEnergy", crystalEnergyCuts, crystalEnergyStepSize, nSteps, "", "Highest Crystal Energy (GeV)", "crystalTOFEnergy");
+  SigMeanTGraph(file, histCrystalTOFEta, "histCrystalTOFEta", etaCuts, etaStepSize, etaChannels, "", "Eta", "crystalTOFEta");
+  SigMeanTGraph(file, histCrystalTOFPhi, "histCrystalTOFPhi", phiCuts, phiStepSize, phiChannels, "", "Phi", "crystalTOFPhi");
+  SigMeanTGraph(file, histCrystalTOFRun, "histCrystalTOFRun", runCuts, stepSize, nSteps, "", "Run Number", "crystalTOFRun");
+  SigMeanTGraph(file, histCrystalTOFTransp, "histCrystalTOFTransp", transpCuts, transpStepSize, nSteps, "", "Transparency", "crystalTOFTransp");
 
   std::cout<<"Generating Run Plots..."<<std::endl;
   SigMeanTGraph(file, histRun_t, "histRun_t", runCuts, stepSize, nSteps, "", "Run Number", "run_t");
