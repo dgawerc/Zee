@@ -67,7 +67,7 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
   // Correct For Low-Event Histograms:
   int  nBad = 0;
   for (int i=0; i<points; i++) {
-    if (hist[i]->GetEntries() < 250) {
+    if (hist[i]->GetEntries() < 1E3) {
       for (int j=i; j<(points-1); j++){
         X[j-nBad] = X[j-nBad+1]; // delete bad element and shift others left
         Y[j-nBad] = Y[j-nBad+1]; // Note last element gets duplicated but also stays where it is
@@ -103,7 +103,7 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
 
   gStyle->SetTitleFontSize(0.1);
   ge->SetTitle( Title.c_str() );
-  ge->SetLineWidth(3);
+  ge->SetLineWidth(2);
 
   gErrorIgnoreLevel = kWarning; //Suppress info about created file
   c->SaveAs( ("plots/pdf/"+filename+".pdf").c_str() );
@@ -271,20 +271,25 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
   TH1D* phiSigmaHist = new TH1D( ("PhiSigma_"+timeTitle).c_str() , (timeTitle+";i#phi;Time Resolution #sigma (ns)").c_str() ,phiChannels, 0, 360);
   TH1D* phiMeanHist  = new TH1D( ("PhiMean_"+timeTitle ).c_str() , (timeTitle+";i#phi;Mean").c_str() ,phiChannels, 0, 360);
 
+  float etaSigMin = 999, etaMeanMin = 999, phiSigMin = 999, phiMeanMin = 999;
   for (int i=0; i<etaChannels; i++) {
-    if (etaHists[i]->GetEntries() > 100 ) {
+    if (etaHists[i]->GetEntries() > 150 ) {
       etaSigmaHist->SetBinContent(i+1, etaSigma[i]);
       etaSigmaHist->SetBinError(i+1, etaSigEr[i]);
       etaMeanHist->SetBinContent(i+1, etaMean[i]);
       etaMeanHist->SetBinError(i+1, etaMeanEr[i]);
+      if (etaSigma[i] - etaSigEr[i] < etaSigMin) etaSigMin = etaSigma[i] - etaSigEr[i];
+      if (etaMean[i] - etaMeanEr[i] < etaMeanMin) etaMeanMin = etaMean[i] - etaMeanEr[i];
     }
   }
   for (int i=0; i<phiChannels; i++) {
-    if (phiHists[i]->GetEntries() > 100 ) {
+    if (phiHists[i]->GetEntries() > 150 ) {
       phiSigmaHist->SetBinContent(i+1, phiSigma[i]);
       phiSigmaHist->SetBinError(i+1, phiSigEr[i]);
       phiMeanHist->SetBinContent(i+1, phiMean[i]);
       phiMeanHist->SetBinError(i+1, phiMeanEr[i]);
+      if (phiSigma[i] - phiSigEr[i] < phiSigMin) phiSigMin = phiSigma[i] - phiSigEr[i];
+      if (phiMean[i] - phiMeanEr[i] < phiMeanMin) phiMeanMin = phiMean[i] - phiMeanEr[i];
     }
   }
 
@@ -292,6 +297,11 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
   etaMeanHist->SetOption("ehist");
   phiSigmaHist->SetOption("ehist");
   phiMeanHist->SetOption("ehist");
+
+  etaSigmaHist->SetMinimum( etaSigMin );
+  etaMeanHist->SetMinimum( etaMeanMin );
+  phiSigmaHist->SetMinimum( phiSigMin );
+  phiMeanHist->SetMinimum( phiMeanMin );
 
   SaveHist(etaSigmaHist);
   SaveHist(etaMeanHist);
@@ -305,8 +315,9 @@ template <class U1>
 U1 CutArray(U1 cuts[], int nSteps, U1 min, U1 max) {
   U1 stepSize = (max - min) / nSteps;
   for (int i=0; i<nSteps; i++) cuts[i] = min + i * stepSize;
-  cuts[nSteps] = max; // Last element outside loop because StepSize might be rounded if int
-  return stepSize;
+  cuts[nSteps] = max+1; // Last element outside loop because StepSize might be rounded if int
+  return stepSize; 
+  // When looping through nSteps, should check quantity <= cuts[i] && quentity > cuts[i+1]. Note <= and >.
 }
 
 
@@ -336,6 +347,7 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
             histFinal->SetBinContent(i+1, j+1, param[i][j]);
             if ( param[i][j]<minParam ) minParam = param[i][j];
           }
+          else histFinal->SetBinContent(i+1, j+1, -999);
         }
         else histFinal->SetBinContent(i+1, j+1, -999);
       }
@@ -357,6 +369,7 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
             histFinal->SetBinContent(i+1, j+1, param[i][j]);
             if ( param[i][j]<minParam ) minParam = param[i][j];
           }
+          else histFinal->SetBinContent(i+1, j+1, -999);
         }
         else histFinal->SetBinContent(i+1, j+1, -999);
       }
@@ -380,14 +393,14 @@ void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, flo
     float maxEnergy = *maxEnergyItr;
     if ( !(maxEnergy > energyCut_Abs) ) return;
     int crystal1Elt = distance(energy.begin(), maxEnergyItr);
-    float energyCut_Rel = 0.5 * maxEnergy;
-    float deltaRcut = 0.03;
-    float deltaR;
+    float energyCut_Rel = 0.7 * maxEnergy;
+    float deltaRcut = 0.02;
+    float deltaR1;
     vector<int> candidate_index; // Store indices of possible nearby crystals with 2nd highest energy
     for (unsigned int i=0; i<eta.size(); i++) {
-      deltaR = sqrt( pow( eta[crystal1Elt] - eta[i] , 2)
+      deltaR1 = sqrt( pow( eta[crystal1Elt] - eta[i] , 2)
                    + pow( phi[crystal1Elt] - phi[i] , 2) );
-      if ( i!=crystal1Elt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
+      if ( i!=crystal1Elt && deltaR1<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
     }
     if (candidate_index.size() < 1) return;
     vector<int> candidate_energy;
@@ -397,17 +410,19 @@ void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, flo
     // Repeat exact process for 3rd crystal
     candidate_index.clear();
     candidate_energy.clear();
-    energyCut_Rel = 0.5 * energy[crystal2Elt];
+    energyCut_Rel = 0.7 * energy[crystal2Elt];
+    float deltaR2;
     for (unsigned int i=0; i<eta.size(); i++) {
-      deltaR = sqrt( pow( eta[crystal1Elt] - eta[i] , 2)
-                   + pow( phi[crystal1Elt] - phi[i] , 2) );
-      if ( i!=crystal1Elt && i!=crystal2Elt && deltaR<deltaRcut && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
+      deltaR1 = sqrt( pow( eta[crystal1Elt] - eta[i] , 2)
+                    + pow( phi[crystal1Elt] - phi[i] , 2) );
+      deltaR2 = sqrt( pow( eta[crystal2Elt] - eta[i] , 2)
+                    + pow( phi[crystal2Elt] - phi[i] , 2) );
+      if ( i!=crystal1Elt && i!=crystal2Elt && /*(deltaR1<deltaRcut ||*/ deltaR2<deltaRcut/*)*/ && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
     }
     if (candidate_index.size() < 1) return;
     for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
     tempElt = distance( candidate_energy.begin(), max_element(candidate_energy.begin(), candidate_energy.end()) );
     int crystal3Elt = candidate_index[ tempElt ];
-
     skip.push_back(crystal1Elt);
     skip.push_back(crystal2Elt);
     skip.push_back(crystal3Elt);
@@ -515,12 +530,80 @@ void Zee_beta() {
   float ele2Pt;
   float seed2_transpCorr;
 
-  tree->SetBranchStatus("*",1);
+  // Activating the used branches only greatly speeds up looping through data
+  tree->SetBranchStatus("*",0);
+  tree->SetBranchStatus("run",1);
+  tree->SetBranchStatus("nPV",1);
+  tree->SetBranchStatus("eventTime",1);
 
-  tree->SetBranchAddress("mass",&mass);
   tree->SetBranchAddress("run",&run);
   tree->SetBranchAddress("nPV",&nPV);
   tree->SetBranchAddress("eventTime",&eventTime);
+
+  Long64_t nentries = tree->GetEntries();
+  std::cout<<"Number of Events in Sample: "<<nentries<<std::endl;
+
+  // Find values of min and max
+  float crystalEnergyMin = 10;
+  float crystalEnergyMax = 105;
+  float transpMin   = 0.4;
+  float transpMax   = 3.4;
+  unsigned int runMin = 10E7;
+  unsigned int runMax = 0;
+  unsigned int nPVMin = 1;
+  unsigned int nPVMax = nPVMin;
+  unsigned int eventTimeMin = 4E9;
+  unsigned int eventTimeMax = 0;
+  float tMin = -5;
+  float tMax = 5;
+
+  for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
+    tree->GetEntry(iEntry);
+
+    if      (run < runMin) runMin = run;
+    else if (run > runMax) runMax = run; // the "else" should speed it up. If the data order is monotonic, remove it
+
+    if      (eventTime < eventTimeMin) eventTimeMin = eventTime;
+    else if (eventTime > eventTimeMax) eventTimeMax = eventTime;
+
+    if (nPV > nPVMax) nPVMax = nPV;
+  }
+
+  // Activate the other branches now that initial loop is done
+  tree->SetBranchStatus("mass",1);
+  tree->SetBranchStatus("ecalElectronRechit_E",1);
+  tree->SetBranchStatus("ecalElectronRechit_Eta",1);
+  tree->SetBranchStatus("ecalElectronRechit_Phi",1);
+  tree->SetBranchStatus("ecalElectronRechit_transpCorr",1);
+  tree->SetBranchStatus("ecalElectronRechit_calibT_lagacy",1);
+
+  tree->SetBranchStatus("t1",1);
+  tree->SetBranchStatus("t1_seed",1);
+  tree->SetBranchStatus("t1raw_seed",1);
+  tree->SetBranchStatus("t1calib_seed",1);
+  tree->SetBranchStatus("t1calib_seed_sept",1);
+  tree->SetBranchStatus("ele1SeedIEta",1);
+  tree->SetBranchStatus("ele1SeedIPhi",1);
+  tree->SetBranchStatus("ele1Eta",1);
+  tree->SetBranchStatus("ele1Phi",1);
+  tree->SetBranchStatus("ele1IsEB",1);
+  tree->SetBranchStatus("ele1Pt",1);
+  tree->SetBranchStatus("seed1_transpCorr",1);
+
+  tree->SetBranchStatus("t2",1);
+  tree->SetBranchStatus("t2_seed",1);
+  tree->SetBranchStatus("t2raw_seed",1);
+  tree->SetBranchStatus("t2calib_seed",1);
+  tree->SetBranchStatus("t2calib_seed_sept",1);
+  tree->SetBranchStatus("ele2SeedIEta",1);
+  tree->SetBranchStatus("ele2SeedIPhi",1);
+  tree->SetBranchStatus("ele2Eta",1);
+  tree->SetBranchStatus("ele2Phi",1);
+  tree->SetBranchStatus("ele2IsEB",1);
+  tree->SetBranchStatus("ele2Pt",1);
+  tree->SetBranchStatus("seed2_transpCorr",1);
+
+  tree->SetBranchAddress("mass",&mass);
   tree->SetBranchAddress("ecalElectronRechit_E",&ecalElectronRechit_EPtr);
   tree->SetBranchAddress("ecalElectronRechit_Eta",&ecalElectronRechit_EtaPtr);
   tree->SetBranchAddress("ecalElectronRechit_Phi",&ecalElectronRechit_PhiPtr);
@@ -552,35 +635,6 @@ void Zee_beta() {
   tree->SetBranchAddress("ele2IsEB",&ele2IsEB);
   tree->SetBranchAddress("ele2Pt",&ele2Pt);
   tree->SetBranchAddress("seed2_transpCorr",&seed2_transpCorr);
-
-  Long64_t nentries = tree->GetEntries();
-  std::cout<<"Number of Events in Sample: "<<nentries<<std::endl;
-
-  // Find values of min and max
-  float crystalEnergyMin = 5;
-  float crystalEnergyMax = 105;
-  float transpMin   = 0.4;
-  float transpMax   = 3.4;
-  unsigned int runMin = 10E7;
-  unsigned int runMax = 0;
-  unsigned int nPVMin = 1;
-  unsigned int nPVMax = nPVMin;
-  unsigned int eventTimeMin = 4E9;
-  unsigned int eventTimeMax = 0;
-  float tMin = -5;
-  float tMax = 5;
-
-  for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
-    tree->GetEntry(iEntry);
-
-    if      (run < runMin) runMin = run;
-    else if (run > runMax) runMax = run; // the "else" should speed it up. If the data order is monotonic, remove it
-
-    if      (eventTime < eventTimeMin) eventTimeMin = eventTime;
-    else if (eventTime > eventTimeMax) eventTimeMax = eventTime;
-
-    if (nPV > nPVMax) nPVMax = nPV;
-  }
 
   // Construct (nSteps) intervals 
   int nSteps = 50;
@@ -726,7 +780,7 @@ void Zee_beta() {
 
       histTransp1_t1[i] = new TH1F( Form("histTransp1_t1[%d]",i), ";t_{1};Entries", 120, -3, 3); 
       histTransp2_t2[i] = new TH1F( Form("histTransp2_t2[%d]",i), ";t_{2};Entries", 120, -3, 3);
-      histTransp1_t1seed[i] = new TH1F( Form("histTransp1_t1seed[%d]",i), ";t_{1} Seed;Entries", 120, -3, 3);
+      histTransp1_t1seed[i] = new TH1F( Form("histTransp1_t1seed[%d]",i), ";t_{1} Seed;Entries", 12000, -3, 3);
       histTransp2_t2seed[i] = new TH1F( Form("histTransp2_t2seed[%d]",i), ";t_{2} Seed;Entries", 120, -3, 3);
       histTransp1_t1rawseed[i] = new TH1F( Form("histTransp1_t1rawseed[%d]",i), ";t_{1} Raw Seed;Entries", 120, -5, 5);
       histTransp2_t2rawseed[i] = new TH1F( Form("histTransp2_t2rawseed[%d]",i), ";t_{2} Raw Seed;Entries", 120, -5, 5);
@@ -789,11 +843,13 @@ void Zee_beta() {
     for (int i=0; i<nSteps; i++) {
       if( !(nPV>=nPVCuts[i] && nPV<nPVCuts[i+1]) ) continue;
         histnPV_t[i]->Fill( t1-t2 ); 
+        break;
     }
 
     for (int i=0; i<nSteps; i++) {
       if( !(eventTime>=eventTimeCuts[i] && eventTime<eventTimeCuts[i+1]) ) continue;
         histEventTime_t[i]->Fill( t1-t2 );
+        break;
     }
 
     // Transparency
@@ -888,6 +944,9 @@ void Zee_beta() {
   SigMeanTGraph(file, histCrystalTOFPhi, "histCrystalTOFPhi", phiCuts, phiStepSize, phiChannels, "", "Phi", "crystalTOFPhi");
   SigMeanTGraph(file, histCrystalTOFRun, "histCrystalTOFRun", runCuts, stepSize, nSteps, "", "Run Number", "crystalTOFRun");
   SigMeanTGraph(file, histCrystalTOFTransp, "histCrystalTOFTransp", transpCuts, transpStepSize, nSteps, "", "Transparency", "crystalTOFTransp");
+  TH1F *histCrystalTOF = new TH1F( "histCrystalTOF",";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
+  for (unsigned int i=0; i<nSteps; i++) histCrystalTOF->Add(histCrystalTOFEnergy[i]);
+  file->WriteTObject(histCrystalTOF, "histCrystalTOF","WriteDelete");
 
   std::cout<<"Generating Run Plots..."<<std::endl;
   SigMeanTGraph(file, histRun_t, "histRun_t", runCuts, stepSize, nSteps, "", "Run Number", "run_t");
@@ -927,8 +986,8 @@ void Zee_beta() {
   AvgTimeGraph(histTransp2_t2rawseed, nSteps, transpMin, transpMax, "Transp2_t2rawseed", "", "Seed 2 Transparency", "Average t_{2} Raw Seed");
   AvgTimeGraph(histTransp1_t1calibseed, nSteps, transpMin, transpMax, "Transp1_t1calibseed", "", "Seed 1 Transparency", "Average t_{1} Calib Seed");
   AvgTimeGraph(histTransp2_t2calibseed, nSteps, transpMin, transpMax, "Transp2_t2calibseed", "", "Seed 2 Transparency", "Average t_{2} Calib Seed");
-  AvgTimeGraph(histTransp1_t1calibseedsept, nSteps, transpMin, transpMax, "Transp1_t1calibseedsept", "", "Seed 1 Transparency", "Average t_{1} Calib Seed Sept");
-  AvgTimeGraph(histTransp2_t2calibseedsept, nSteps, transpMin, transpMax, "Transp2_t2calibseedsept", "", "Seed 2 Transparency", "Average t_{2} Calib Seed Sept");
+  AvgTimeGraph(histTransp1_t1calibseedsept, nSteps, transpMin, transpMax, "Transp1_t1calibseedsept", "", "Seed 1 Transparency", "Avg t_{1} Calib Seed Sept");
+  AvgTimeGraph(histTransp2_t2calibseedsept, nSteps, transpMin, transpMax, "Transp2_t2calibseedsept", "", "Seed 2 Transparency", "Avg t_{2} Calib Seed Sept");
 
 
   std::cout<<"Generating 1D Eta and Phi Plots..."<<std::endl;
@@ -980,19 +1039,39 @@ void Zee_beta() {
   hist2D( histTransp2t2calibseedsept, 0, nSteps,transpMin,transpMax, nSteps,tMin,tMax, "events_Transp2t2calibseedsept", "Events", "Seed 2 Transparency", "t_{2} Calib Seed Sept" );
 
 
-  // THE FOLLOWING SECTION HAD IMPLEMENTED A TRANSPARENCY CORRECTION, BUT IT AFFECTED <10% OF EVENTS, SO IT WAS PHASED OUT
-/*
-  cout<<"Looping through events again, to correct for linear transparency trend."<<endl;
+  // THE FOLLOWING SECTION HAD IMPLEMENTED A TRANSPARENCY CORRECTION, BUT IT WAS NEGLIGIBLE SO IT WAS PHASED OUT
+  /*
+  tree->SetBranchStatus("ecalElectronRechit_E",0);
+  tree->SetBranchStatus("ecalElectronRechit_Eta",0);
+  tree->SetBranchStatus("ecalElectronRechit_Phi",0);
+  tree->SetBranchStatus("ecalElectronRechit_transpCorr",0);
+  tree->SetBranchStatus("ecalElectronRechit_calibT_lagacy",0);
+
+  tree->SetBranchStatus("t1raw_seed",0);
+  tree->SetBranchStatus("t1calib_seed",0);
+  tree->SetBranchStatus("t1calib_seed_sept",0);
+  tree->SetBranchStatus("ele1SeedIEta",0);
+  tree->SetBranchStatus("ele1SeedIPhi",0);
+  tree->SetBranchStatus("ele1Eta",0);
+  tree->SetBranchStatus("ele1Phi",0);
+
+  tree->SetBranchStatus("t2raw_seed",0);
+  tree->SetBranchStatus("t2calib_seed",0);
+  tree->SetBranchStatus("t2calib_seed_sept",0);
+  tree->SetBranchStatus("ele2SeedIEta",0);
+  tree->SetBranchStatus("ele2SeedIPhi",0);
+  tree->SetBranchStatus("ele2Eta",0);
+  tree->SetBranchStatus("ele2Phi",0);
+
+  cout<<"Looping through events again, subtracting avg time for transparency."<<endl;
   TH1F *histRun_tnew[nSteps];
   TH1F *histRun_tseednew[nSteps];
   TH1F *check[nSteps];
   for (int i=0; i<nSteps; i++) {
     histRun_tnew[i] = new TH1F( Form("histRun_tnew[%d]",i),";t_{1}-t_{2};Entries", 120, -3, 3);
     histRun_tseednew[i] = new TH1F( Form("histRun_tseednew[%d]",i),";t_{1}-t_{2} Seed;Entries", 120, -3, 3);
-    check[i] = new TH1F( Form("check[%d]",i),"",120, -3, 3);
+    check[i] = new TH1F( Form("check[%d]",i),"",12000, -3, 3);
   }
-  float transpmin = 1.3, transpmax=2.3;
-  int index = 0;
 
   for (Long64_t iEntry=0; iEntry<nentries; iEntry++) {
     if (iEntry %500000 == 0) cout << "Processing Event " << iEntry << "\n";
@@ -1000,56 +1079,37 @@ void Zee_beta() {
 
     if( !(ele1Pt>30 && ele2Pt>30 && mass>75 && mass<105 && ele1IsEB && ele2IsEB) ) continue; //Prelim cuts for everything
 
+
     //Time resolution vs Run
     for (int i=0; i<nSteps; i++) {
       if( !(run>=runCuts[i] && run<runCuts[i+1]) ) continue;
-      // Update t1
       float t1new, t1seednew, t2new, t2seednew;
-      if ( seed1_transpCorr<transpmin ) {
-        t1new = t1; // Maybe try: t1 - (fit1->GetParameter(0) + fit1->GetParameter(1)*transpmin)
-        t1seednew = t1_seed;
-      }
-      else if ( seed1_transpCorr<transpmax ) {
-        t1new = t1 - (fit1_t->GetParameter(0) + fit1_t->GetParameter(1)*seed1_transpCorr) ;
-        t1seednew = t1_seed - (fit1_tseed->GetParameter(0) + fit1_tseed->GetParameter(1)*seed1_transpCorr) ;
-index+=1;      }
-      else {
-        t1new = t1 - (fit1_t->GetParameter(0) + fit1_t->GetParameter(1)*transpmax);
-        t1seednew = t1_seed - (fit1_tseed->GetParameter(0) + fit1_tseed->GetParameter(1)*transpmax) ;
-index+=1;      }
-      // Update t2
-      if ( seed2_transpCorr<transpmin ) {
-        t2new = t2; // Maybe try: t1 - (fit1->GetParameter(0) + fit1->GetParameter(1)*transpmin)
-        t2seednew = t2_seed;
-      }
-      else if ( seed2_transpCorr<transpmax ) {
-        t2new = t2 - (fit2_t->GetParameter(0) + fit2_t->GetParameter(1)*seed2_transpCorr) ;
-        t2seednew = t2_seed - (fit2_tseed->GetParameter(0) + fit2_tseed->GetParameter(1)*seed2_transpCorr) ;
-      }
-      else {
-        t2new = t2 - (fit2_t->GetParameter(0) + fit2_t->GetParameter(1)*transpmax);
-        t2seednew = t2_seed - (fit2_tseed->GetParameter(0) + fit2_tseed->GetParameter(1)*transpmax) ;
-      }
-
-      histRun_tnew[i]->Fill( t1new-t2new );
-      histRun_tseednew[i]->Fill( t1seednew-t2seednew );
-
-      for (int j=0; i<nSteps; j++) {
-        if(seed1_transpCorr>=transpCuts[j] && seed1_transpCorr<transpCuts[j+1]) { 
+      // Update t1
+      for (int j=0; j<nSteps; j++) {
+        if ( !(seed1_transpCorr>=transpCuts[j] && seed1_transpCorr<transpCuts[j+1]) ) continue;
+          t1new = t1 - histTransp1_t1[j]->GetMean(); 
+          t1seednew = t1_seed - histTransp1_t1seed[j]->GetMean();
           check[j]->Fill( t1seednew );
+          break;
+        
+      }
+      // Update t2
+      for (int j=0; j<nSteps; j++) {
+        if ( seed2_transpCorr>=transpCuts[j] && seed2_transpCorr<transpCuts[j+1] ) {
+          t2new = t2 - histTransp2_t2[j]->GetMean();
+          t2seednew = t2_seed - histTransp2_t2seed[j]->GetMean();
           break;
         }
       }
+      // Fill histograms
+      histRun_tnew[i]->Fill( t1new-t2new );
+      histRun_tseednew[i]->Fill( t1seednew-t2seednew );
       break; // Don't bother to check other cases in the for loop
     }
   }
     
-cout<<"There were "<<index<<" events modified for transparency."<<endl;  
-
   SigMeanTGraph(file, histRun_tnew, "histRun_tnew", runCuts, stepSize, nSteps, "Corrected", "Run Number", "run_tnew");
   SigMeanTGraph(file, histRun_tseednew, "histRun_tseednew", runCuts, stepSize, nSteps, "Seed Corrected", "Run Number", "run_tseednew");
-
-  AvgTimeGraph(check, nSteps, transpMin, transpMax, "Transp1_check", "", "Seed 1 Transparency", "Average t_{1}");
-  */
-
+  AvgTimeGraph(check, nSteps, transpMin, transpMax, "Transp1_check", "", "Seed 1 Transparency", "Average t_{1} Corrected");
+*/
 }
