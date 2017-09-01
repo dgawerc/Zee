@@ -317,7 +317,7 @@ U1 CutArray(U1 cuts[], int nSteps, U1 min, U1 max) {
   for (int i=0; i<nSteps; i++) cuts[i] = min + i * stepSize;
   cuts[nSteps] = max+1; // Last element outside loop because StepSize might be rounded if int
   return stepSize; 
-  // When looping through nSteps, should check quantity <= cuts[i] && quentity > cuts[i+1]. Note <= and >.
+  // When looping through nSteps, should check quantity >= cuts[i] && quentity < cuts[i+1]. Note >= and <.
 }
 
 
