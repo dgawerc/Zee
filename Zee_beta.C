@@ -30,10 +30,16 @@
 #include <cmath>
 
 
-TF1* Fitter(TH1 *hist) {
-  // Helper function for fitting DOUBLE Gaussian
+TF1* Fitter(TH1 *hist, bool single = 0) {
   float xmin = hist->GetMean() - 3.0*hist->GetRMS();
   float xmax = hist->GetMean() + 3.0*hist->GetRMS();
+  // fitting SINGLE Gaussian
+  if(single == 1) {
+    hist->Fit("gaus","Q","",xmin,xmax); // Q suppresses fit results
+    gStyle->SetOptFit(1);
+    return hist->GetFunction("gaus"); 
+  }
+  // fitting DOUBLE Gaussian
   TF1 *DGfit = new TF1("DGfit", "gaus(0) + gaus(3)", xmin, xmax);
   DGfit->SetParameters(hist->GetMaximum()/2.0, 0, hist->GetRMS(),
                        hist->GetMaximum()/2.0, 0, hist->GetRMS());
@@ -103,7 +109,9 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
 
   gStyle->SetTitleFontSize(0.1);
   ge->SetTitle( Title.c_str() );
-  ge->SetLineWidth(2);
+  if (points-nBad < 50) ge->SetLineWidth(3);
+  else if (points-nBad < 100) ge->SetLineWidth(2);
+  else ge->SetLineWidth(1);
 
   gErrorIgnoreLevel = kWarning; //Suppress info about created file
   c->SaveAs( ("plots/pdf/"+filename+".pdf").c_str() );
@@ -115,7 +123,8 @@ void scatterPlot(float x[], float y[], float ex[], float ey[], int points, TH1F 
 
 
 
-float GetDGSigma(TF1 *fit) {
+float GetDGSigma(TF1 *fit, bool single = 0) {
+  if (single==1) return fit->GetParameter(2);
   float p[6];
   for (int i=0; i<6; i++) p[i] = fit->GetParameter(i);
   return (p[0] * p[2] + p[3] * p[5]) / (p[0] + p[3]);
@@ -123,7 +132,8 @@ float GetDGSigma(TF1 *fit) {
 
 
 
-float GetDGMean(TF1 *fit) {
+float GetDGMean(TF1 *fit, bool single = 0) {
+  if (single==1) return fit->GetParameter(1);
   float p[6];
   for (int i=0; i<6; i++) p[i] = fit->GetParameter(i);
   return (p[0] * p[1] + p[3] * p[4]) / (p[0] + p[3]);
@@ -131,7 +141,8 @@ float GetDGMean(TF1 *fit) {
 
 
 
-float GetDGSigmaError(TF1 *fit) {
+float GetDGSigmaError(TF1 *fit, bool single = 0) {
+  if (single==1) return fit->GetParError(2);
   float p[6];
   float e[6];
   for (int i=0; i<6; i++) {
@@ -144,7 +155,8 @@ float GetDGSigmaError(TF1 *fit) {
 
 
 
-float GetDGMeanError(TF1 *fit) {
+float GetDGMeanError(TF1 *fit, bool single = 0) {
+  if (single==1) return fit->GetParError(1);
   float p[6];
   float e[6];
   for (int i=0; i<6; i++) {
@@ -164,15 +176,16 @@ void SigMeanTGraph(TFile *file, TH1F** hists, string histName, T1 cutArray[], T2
   float  SigEr[nSteps];
   float   Mean[nSteps];
   float MeanEr[nSteps];
+  bool singleGauss = 0;
 
   for (int i=0; i<nSteps; i++) {
     if ( !(hists[i]->GetEntries() > 100) ) continue;
-    Fit[i] = Fitter(hists[i]);
+    Fit[i] = Fitter( hists[i], singleGauss );
     file->WriteTObject(hists[i], ( histName+Form("[%d]",i) ).c_str(),"WriteDelete");
-    Sigma[i] = GetDGSigma( Fit[i] );      //Fit[i]->GetParameter(2);
-    SigEr[i] = GetDGSigmaError( Fit[i] ); //Fit[i]->GetParError(2);
-    Mean[i]  = GetDGMean( Fit[i] );       //Fit[i]->GetParameter(1);
-    MeanEr[i]= GetDGMeanError( Fit[i] );  //Fit[i]->GetParError(1);
+    Sigma[i] = GetDGSigma( Fit[i], singleGauss );     
+    SigEr[i] = GetDGSigmaError( Fit[i], singleGauss ); 
+    Mean[i]  = GetDGMean( Fit[i], singleGauss );   
+    MeanEr[i]= GetDGMeanError( Fit[i], singleGauss );  
   }
 
   float xVals[nSteps];
@@ -248,22 +261,23 @@ void EtaPhi1D( int etaChannels, int phiChannels, TH1F** etaHists, TH1F** phiHist
   float etaMeanEr[etaChannels];
   float phiMean[phiChannels];
   float phiMeanEr[phiChannels];
+  bool singleGauss = 0;
 
   for (int i=0; i<phiChannels; i++) {
     if ( !(phiHists[i]->GetEntries() != 0) ) continue;
-    phiFit[i] = Fitter(phiHists[i]);
-    phiSigma[i] = GetDGSigma( phiFit[i] );      //phiFit[i]->GetParameter(2);
-    phiSigEr[i] = GetDGSigmaError( phiFit[i] ); //phiFit[i]->GetParError(2);
-    phiMean[i]  = GetDGMean( phiFit[i] );       //phiFit[i]->GetParameter(1);
-    phiMeanEr[i]= GetDGMeanError( phiFit[i] );  //phiFit[i]->GetParError(1);
+    phiFit[i] = Fitter( phiHists[i], singleGauss );
+    phiSigma[i] = GetDGSigma( phiFit[i], singleGauss );      
+    phiSigEr[i] = GetDGSigmaError( phiFit[i], singleGauss ); 
+    phiMean[i]  = GetDGMean( phiFit[i], singleGauss );       
+    phiMeanEr[i]= GetDGMeanError( phiFit[i], singleGauss );  
   }
   for (int i=0; i<etaChannels; i++) {
     if ( !(etaHists[i]->GetEntries() != 0) ) continue;
-    etaFit[i] = Fitter(etaHists[i]);
-    etaSigma[i] = GetDGSigma( etaFit[i] );//etaFit[i]->GetParameter(2);
-    etaSigEr[i] = GetDGSigmaError( etaFit[i] );//etaFit[i]->GetParError(2);
-    etaMean[i]  = GetDGMean( etaFit[i] );//etaFit[i]->GetParameter(1);
-    etaMeanEr[i]= GetDGMeanError( etaFit[i] );//etaFit[i]->GetParError(1);
+    etaFit[i] = Fitter( etaHists[i], singleGauss );
+    etaSigma[i] = GetDGSigma( etaFit[i], singleGauss );
+    etaSigEr[i] = GetDGSigmaError( etaFit[i], singleGauss );
+    etaMean[i]  = GetDGMean( etaFit[i], singleGauss );
+    etaMeanEr[i]= GetDGMeanError( etaFit[i], singleGauss );
   }
 
   TH1D* etaSigmaHist = new TH1D( ("EtaSigma_"+timeTitle).c_str() , (timeTitle+";i#eta;Time Resolution #sigma (ns)").c_str() ,etaChannels, -85, 85);
@@ -338,11 +352,12 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
     TF1  *Fit[xlen][ylen];
     double param[xlen][ylen];
     double minParam = 5E7;
+    bool singleGauss = 0;
     for (int i=0; i<xlen; i++) {
       for (int j=0; j<ylen; j++) {
         if ( hist[i][j]->GetEntries() > 150 ) {
-          Fit[i][j] = Fitter(hist[i][j]);
-          param[i][j] = GetDGMean(Fit[i][j]);
+          Fit[i][j] = Fitter( hist[i][j], singleGauss );
+          param[i][j] = GetDGMean( Fit[i][j], singleGauss);
           if ( abs(param[i][j]) < 0.2 ) {
             histFinal->SetBinContent(i+1, j+1, param[i][j]);
             if ( param[i][j]<minParam ) minParam = param[i][j];
@@ -360,11 +375,12 @@ void hist2D( vector<vector<TH1F*> > hist, int zAxis, int xlen, float xmin, float
     TF1  *Fit[xlen][ylen];
     double param[xlen][ylen];
     double minParam = 5E7;
+    bool singleGauss = 0;
     for (int i=0; i<xlen; i++) {
       for (int j=0; j<ylen; j++) {
         if ( hist[i][j]->GetEntries() > 150 ) {
-          Fit[i][j] = Fitter(hist[i][j]);
-          param[i][j] = GetDGSigma(Fit[i][j]);
+          Fit[i][j] = Fitter( hist[i][j], singleGauss );
+          param[i][j] = GetDGSigma( Fit[i][j], singleGauss);
           if ( param[i][j] < 1.6 && param[i][j] > 0 ) {
             histFinal->SetBinContent(i+1, j+1, param[i][j]);
             if ( param[i][j]<minParam ) minParam = param[i][j];
@@ -417,7 +433,7 @@ void crystalTOF(TH1F** hists, T1 cutArray[], int nBins, float energyCut_Abs, flo
                     + pow( phi[crystal1Elt] - phi[i] , 2) );
       deltaR2 = sqrt( pow( eta[crystal2Elt] - eta[i] , 2)
                     + pow( phi[crystal2Elt] - phi[i] , 2) );
-      if ( i!=crystal1Elt && i!=crystal2Elt && /*(deltaR1<deltaRcut ||*/ deltaR2<deltaRcut/*)*/ && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
+      if ( i!=crystal1Elt && i!=crystal2Elt && (deltaR1<deltaRcut || deltaR2<deltaRcut) && energy[i]>energyCut_Abs && energy[i]>energyCut_Rel ) candidate_index.push_back(i);
     }
     if (candidate_index.size() < 1) return;
     for (unsigned int i=0; i<candidate_index.size(); i++) candidate_energy.push_back( energy[candidate_index[i]] );
@@ -940,8 +956,8 @@ void Zee_beta() {
 
   cout << "Generating Crystal TOF Plots..." << endl;
   SigMeanTGraph(file, histCrystalTOFEnergy, "histCrystalTOFEnergy", crystalEnergyCuts, crystalEnergyStepSize, nSteps, "", "Highest Crystal Energy (GeV)", "crystalTOFEnergy");
-  SigMeanTGraph(file, histCrystalTOFEta, "histCrystalTOFEta", etaCuts, etaStepSize, etaChannels, "", "Eta", "crystalTOFEta");
-  SigMeanTGraph(file, histCrystalTOFPhi, "histCrystalTOFPhi", phiCuts, phiStepSize, phiChannels, "", "Phi", "crystalTOFPhi");
+  SigMeanTGraph(file, histCrystalTOFEta, "histCrystalTOFEta", etaCuts, etaStepSize, etaChannels, "", "#eta", "crystalTOFEta");
+  SigMeanTGraph(file, histCrystalTOFPhi, "histCrystalTOFPhi", phiCuts, phiStepSize, phiChannels, "", "#phi", "crystalTOFPhi");
   SigMeanTGraph(file, histCrystalTOFRun, "histCrystalTOFRun", runCuts, stepSize, nSteps, "", "Run Number", "crystalTOFRun");
   SigMeanTGraph(file, histCrystalTOFTransp, "histCrystalTOFTransp", transpCuts, transpStepSize, nSteps, "", "Transparency", "crystalTOFTransp");
   TH1F *histCrystalTOF = new TH1F( "histCrystalTOF",";t_{Crystal 1}-t_{Crystal 2};Entries", 120, -1, 1);
@@ -1040,7 +1056,7 @@ void Zee_beta() {
 
 
   // THE FOLLOWING SECTION HAD IMPLEMENTED A TRANSPARENCY CORRECTION, BUT IT WAS NEGLIGIBLE SO IT WAS PHASED OUT
-  /*
+  /*  
   tree->SetBranchStatus("ecalElectronRechit_E",0);
   tree->SetBranchStatus("ecalElectronRechit_Eta",0);
   tree->SetBranchStatus("ecalElectronRechit_Phi",0);
@@ -1110,6 +1126,6 @@ void Zee_beta() {
     
   SigMeanTGraph(file, histRun_tnew, "histRun_tnew", runCuts, stepSize, nSteps, "Corrected", "Run Number", "run_tnew");
   SigMeanTGraph(file, histRun_tseednew, "histRun_tseednew", runCuts, stepSize, nSteps, "Seed Corrected", "Run Number", "run_tseednew");
-  AvgTimeGraph(check, nSteps, transpMin, transpMax, "Transp1_check", "", "Seed 1 Transparency", "Average t_{1} Corrected");
+  AvgTimeGraph(check, nSteps, transpMin, transpMax, "Transp1_check", "", "Seed 1 Transparency", "Average t_{1} Seed Corrected");
 */
 }
